@@ -1,0 +1,70 @@
+#pragma once
+
+#include "CoreMinimal.h"
+#include "Engine/DeveloperSettings.h"
+#include "StringTableBrowserSettings.generated.h"
+
+/**
+ * EStringTableBrowserButtonPlacement
+ *
+ * Controls where the search button appears on FText property rows
+ * in the Details panel.
+ */
+UENUM()
+enum class EStringTableBrowserButtonPlacement : uint8
+{
+    /**
+     * Appends the button to the shared extension bar on the right of the row,
+     * alongside buttons from other plugins (e.g. MVVM).
+     * Recommended when multiple plugins add buttons to the same row.
+     */
+    ExtensionBar  UMETA(DisplayName = "Extension Bar (right side, shared)"),
+
+    /**
+     * Places the button inline to the right of the property name label.
+     * Always visible regardless of other plugins, but occupies name column space.
+     */
+    NextToLabel   UMETA(DisplayName = "Next to Property Label"),
+};
+
+/**
+ * UStringTableBrowserSettings
+ *
+ * Developer settings for the String Table Browser plugin.
+ * Accessible via Edit → Project Settings → Plugins → String Table Browser.
+ *
+ * Settings are stored in DefaultStringTableBrowser.ini.
+ */
+UCLASS(Config=StringTableBrowser, DefaultConfig, meta=(DisplayName="String Table Browser"))
+class UStringTableBrowserSettings : public UDeveloperSettings
+{
+    GENERATED_BODY()
+
+public:
+
+    UStringTableBrowserSettings()
+    {
+        CategoryName = "Plugins";
+        SectionName  = "String Table Browser";
+    }
+
+    /** Returns the singleton settings instance. */
+    static const UStringTableBrowserSettings* Get()
+    {
+        return GetDefault<UStringTableBrowserSettings>();
+    }
+
+    /**
+     * Where the String Table Browser search button appears on FText property
+     * rows in the Details panel.
+     *
+     * Extension Bar — shares the right-side button bar with other plugins.
+     * Recommended if you use MVVM or other plugins that also add row buttons.
+     *
+     * Next to Label — places the button inside the property name column.
+     * Always visible but takes up name column space.
+     */
+    UPROPERTY(Config, EditAnywhere, Category="Details Panel",
+        meta=(DisplayName="FText Button Placement"))
+    EStringTableBrowserButtonPlacement ButtonPlacement = EStringTableBrowserButtonPlacement::ExtensionBar;
+};
