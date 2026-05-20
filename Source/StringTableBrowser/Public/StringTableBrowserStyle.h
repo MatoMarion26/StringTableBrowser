@@ -1,3 +1,5 @@
+// Copyright (c) 2026 Mato Marion. All Rights Reserved.
+
 #pragma once
 
 #include "CoreMinimal.h"

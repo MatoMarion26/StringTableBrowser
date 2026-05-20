@@ -1,3 +1,5 @@
+// Copyright (c) 2026 Mato Marion. All Rights Reserved.
+
 #include "StringTableBrowserStyle.h"
 #include "Styling/SlateStyleRegistry.h"
 #include "Interfaces/IPluginManager.h"

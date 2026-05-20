@@ -1,3 +1,5 @@
+// Copyright (c) 2026 Mato Marion. All Rights Reserved.
+
 #include "FTextStringTableBrowserDetailCustomization.h"
 #include "StringTableBrowserSettings.h"
 #include "SStringTableBrowserPickerDropdown.h"

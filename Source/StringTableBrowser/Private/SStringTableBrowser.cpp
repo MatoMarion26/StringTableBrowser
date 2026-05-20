@@ -1,4 +1,4 @@
-// Copyright (c) 2026 Your Name. All Rights Reserved.
+// Copyright (c) 2026 Mato Marion. All Rights Reserved.
 
 #include "SStringTableBrowser.h"
 #include "StringTableBrowserModule.h"
