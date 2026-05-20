@@ -252,4 +252,15 @@ Close and reopen any Details panel that was already open when you changed the se
 
 ## License
 
-MIT — do whatever you like with it.
+This plugin is released under the **MIT License**. 
+
+In short, you are free to:
+* Use this plugin in free or commercial Unreal Engine projects.
+* Modify the source code to suit your needs.
+* Distribute it or include it in your own tools.
+
+The only requirement is that the original copyright notice and license text are included in any substantial distributions of the source code. 
+
+For the full legal text, please see the [LICENSE](LICENSE) file.
+
+Copyright (c) 2026 Mato Marion.
