@@ -127,10 +127,8 @@ YourProject/
         ├── Docs/
         │   ├── README.md
         │   ├── IMPLEMENTATION.md
-        │   └── CHALLENGES.md (invalid)
+        │   └── CHALLENGES.md
         ├── Resources/
-        │   ├── Icon16.png
-        │   └── Icon40.png
         └── Source/
             └── StringTableBrowser/
                 ├── StringTableBrowser.Build.cs
