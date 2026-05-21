@@ -3,6 +3,8 @@
 An Unreal Engine editor plugin that lets you browse, search, and bind every string table
 entry in your project from a single panel.
 
+![String Table Browser Panel](Docs/Screenshots/browser_panel.png)
+
 ## Features
 
 **Unified view** — all string tables across your project displayed in one flat list, grouped
@@ -181,6 +183,8 @@ to 150ms and can be adjusted in **Edit → Project Settings → Plugins → Stri
 Toggle changes (Match Case, Whole Word, Regex, scope) apply immediately since they fire at
 most once per click.
 
+![Live Search](Docs/Screenshots/search_demo.gif)
+
 #### Search Scope
 
 The toggles beneath the search box control which fields are matched against your search term.
@@ -228,6 +232,8 @@ Each result row has three icon buttons in the Action column:
 | 📋 Copy | Copies a `LOCTABLE()` reference for this entry to the clipboard |
 | 🔍 References | Opens Unreal's native Reference Viewer for the source string table asset |
 
+![Row Actions](Docs/Screenshots/row_actions.gif)
+
 The reference copied by the Copy action is paste-ready in C++ source files, Blueprint string
 table reference pins, and any Unreal property that accepts a localised string reference.
 
@@ -241,47 +247,13 @@ the panel is not reflecting them.
 memory at startup. Assets are loaded on demand as you work. If an asset you expect to see is
 missing, open it in the Content Browser and click Force Rebuild Cache.
 
-## Plugin Settings
-
-Go to **Edit → Project Settings → Plugins → String Table Browser** to configure the plugin.
-
-### FText Button Placement
-
-Controls where the search button appears on `FText` property rows in the Details panel.
-
-| Option | Description | When to use |
-|---|---|---|
-| **Next to Property Label** *(default)* | Button appears inline to the right of the property name label | Recommended for all projects — always visible, never conflicts with MVVM or other plugins |
-| **Extension Bar** | Button appears in the shared right-side extension bar, alongside buttons from other plugins | Use only if you specifically want the right-side placement and are not using MVVM or other plugins that also add buttons to FText rows |
-
-> **Known limitation (Extension Bar):** A UE layout bug prevents the extension bar column
-> from resizing when exactly two extension buttons are present (e.g. this plugin's button +
-> the Reset-to-Default button). In that specific case the second button is clipped. This
-> resolves automatically when three or more extension buttons are present, as UE's overflow
-> dropdown activates. **Next to Property Label** does not have this limitation and is
-> recommended for most projects.
-
-The setting is stored in `Config/DefaultStringTableBrowser.ini` and is project-scoped, so it
-commits to source control and applies to all team members.
-
-### Search Debounce Delay
-
-Controls how long the search filter waits after the last keystroke before running, in seconds.
-Default is `0.15` (150ms). Increase this on very large projects to reduce CPU usage while
-typing; decrease it for more immediate feedback on smaller datasets.
-
-### Save Cache to Disk Delay
-
-Controls how long the plugin waits after the last Asset Registry event before writing the
-updated cache to disk, in seconds. Default is `0.5` (500ms). Events that arrive in bursts
-(e.g. importing multiple string tables at once) are batched into a single write. Force Rebuild
-Cache always writes immediately, bypassing this delay.
-
 ## Details Panel Picker
 
 Every `FText` property in the Details panel gets a small search icon button injected into its
 property row. This lets you bind an `FText` property to a string table entry without leaving
 the Details panel.
+
+![Details Panel Picker](Docs/Screenshots/picker_demo.gif)
 
 ### Opening the Picker
 
@@ -325,6 +297,45 @@ advanced browsing. The dropdown closes automatically and the browser tab is focu
 | Default scope | Values | Values |
 | Remembers last search | Per session | Per Details panel instance |
 | Row actions | Edit, Copy, References | Apply (bind FText), Copy |
+
+
+## Plugin Settings
+
+![Plugin Settings](Docs/Screenshots/plugin_settings.png)
+
+Go to **Edit → Project Settings → Plugins → String Table Browser** to configure the plugin.
+
+### FText Button Placement
+
+Controls where the search button appears on `FText` property rows in the Details panel.
+
+| Option | Description | When to use |
+|---|---|---|
+| **Next to Property Label** *(default)* | Button appears inline to the right of the property name label | Recommended for all projects — always visible, never conflicts with MVVM or other plugins |
+| **Extension Bar** | Button appears in the shared right-side extension bar, alongside buttons from other plugins | Use only if you specifically want the right-side placement and are not using MVVM or other plugins that also add buttons to FText rows |
+
+> **Known limitation (Extension Bar):** A UE layout bug prevents the extension bar column
+> from resizing when exactly two extension buttons are present (e.g. this plugin's button +
+> the Reset-to-Default button). In that specific case the second button is clipped. This
+> resolves automatically when three or more extension buttons are present, as UE's overflow
+> dropdown activates. **Next to Property Label** does not have this limitation and is
+> recommended for most projects.
+
+The setting is stored in `Config/DefaultStringTableBrowser.ini` and is project-scoped, so it
+commits to source control and applies to all team members.
+
+### Search Debounce Delay
+
+Controls how long the search filter waits after the last keystroke before running, in seconds.
+Default is `0.15` (150ms). Increase this on very large projects to reduce CPU usage while
+typing; decrease it for more immediate feedback on smaller datasets.
+
+### Save Cache to Disk Delay
+
+Controls how long the plugin waits after the last Asset Registry event before writing the
+updated cache to disk, in seconds. Default is `0.5` (500ms). Events that arrive in bursts
+(e.g. importing multiple string tables at once) are batched into a single write. Force Rebuild
+Cache always writes immediately, bypassing this delay.
 
 ## How the Cache Works
 
