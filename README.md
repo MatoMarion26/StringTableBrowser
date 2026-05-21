@@ -93,7 +93,7 @@ simultaneously, with plain text, whole-word, match-case, and full regex modes.
 ### 3. Tedious FText Binding Workflow
 
 Unreal does provide a way to bind an `FText` property to a string table entry from the Details
-panel — the **Localization Flag** button (🌐) that appears on every `FText` row opens a picker
+panel — the **Localization Flag** button (🏳️) that appears on every `FText` row opens a picker
 window. In practice this picker is limited in ways that make it slow to use unless you already
 know exactly where your string is:
 
