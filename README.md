@@ -222,11 +222,11 @@ multiple scope fields are enabled, they are concatenated with a space before mat
 
 Each result row has three icon buttons in the Action column:
 
-| Icon | Action | Description |
-|---|---|---|
-| ✏️ Edit | `Icons.Edit` | Opens the source string table asset in the Unreal string table editor |
-| 📋 Copy | `Icons.Clipboard` | Copies a `LOCTABLE()` reference for this entry to the clipboard |
-| 🔍 References | `Icons.Find` | Opens Unreal's native Reference Viewer for the source string table asset |
+| Action | Description |
+|---|---|
+| ✏️ Edit | Opens the source string table asset in the Unreal string table editor |
+| 📋 Copy | Copies a `LOCTABLE()` reference for this entry to the clipboard |
+| 🔍 References | Opens Unreal's native Reference Viewer for the source string table asset |
 
 The reference copied by the Copy action is paste-ready in C++ source files, Blueprint string
 table reference pins, and any Unreal property that accepts a localised string reference.
