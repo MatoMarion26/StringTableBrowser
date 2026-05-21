@@ -126,8 +126,8 @@ YourProject/
 └── Plugins/
     └── StringTableBrowser/
         ├── StringTableBrowser.uplugin
+        ├── README.md
         ├── Docs/
-        │   ├── README.md
         │   ├── IMPLEMENTATION.md
         │   └── CHALLENGES.md
         ├── Resources/
@@ -333,7 +333,7 @@ typing; decrease it for more immediate feedback on smaller datasets.
 ### Save Cache to Disk Delay
 
 Controls how long the plugin waits after the last Asset Registry event before writing the
-updated cache to disk, in seconds. Default is `0.5` (500ms). Events that arrive in bursts
+updated cache to disk, in seconds. Default is `1.5` (1500ms). Events that arrive in bursts
 (e.g. importing multiple string tables at once) are batched into a single write. Force Rebuild
 Cache always writes immediately, bypassing this delay.
 
@@ -379,7 +379,7 @@ The disk cache may be stale. Delete `Saved/StringTableBrowserCache.json` and res
 editor, or click **Force Rebuild Cache**.
 
 **A string table was edited and saved but the panel did not update.**
-The cache updates after the `SaveCacheToDiskDelay` interval (default 0.5s) following the save.
+The cache updates after the `SaveCacheToDiskDelay` interval (default 1.5s) following the save.
 If the panel still does not reflect the changes after a moment, click **Force Rebuild Cache**.
 If the issue persists, confirm the asset is loaded in memory by opening it in the Content
 Browser.
