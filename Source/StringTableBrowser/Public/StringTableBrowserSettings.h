@@ -47,7 +47,7 @@ public:
     UStringTableBrowserSettings()
     {
         CategoryName = "Plugins";
-        SectionName  = "String Table Browser";
+        SectionName = "String Table Browser";
     }
 
     /** Returns the singleton settings instance. */
@@ -66,7 +66,20 @@ public:
      * Next to Label — places the button inside the property name column.
      * Always visible but takes up name column space.
      */
-    UPROPERTY(Config, EditAnywhere, Category="Details Panel",
-        meta=(DisplayName="FText Button Placement"))
-    EStringTableBrowserButtonPlacement ButtonPlacement = EStringTableBrowserButtonPlacement::ExtensionBar;
+    UPROPERTY(Config, EditAnywhere, Category="Details Panel", meta=(DisplayName="FText Button Placement"))
+    EStringTableBrowserButtonPlacement ButtonPlacement = EStringTableBrowserButtonPlacement::NextToLabel;
+	
+	/**
+	* Controls the delay for debouncing the search after the user finishes typing on the searchbar.
+	*/
+	UPROPERTY(Config, EditAnywhere, Category="Seach", meta=(DisplayName="Search Debounce Delay"))
+	float SearchDebounceDelay = 0.15f;
+	
+	/**
+	* Controls the delay for saving the updated cache to the disk.
+	* This delay is triggered when we need to write the saved cache, to avoid writing in rapid succession
+	* if the data asset registries are fired in bursts.
+	*/
+	UPROPERTY(Config, EditAnywhere, Category="Cache", meta=(DisplayName="Save Cache to Disk Delay."))
+	float SaveCacheToDiskDelay = 1.5f;
 };

@@ -3,8 +3,11 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "Internationalization/Regex.h"
 #include "StringTableBrowserModule.h"
+#include "StringTableBrowserTypes.h"
+#include "Internationalization/Regex.h"
+#include "Widgets/Input/SCheckBox.h"
+#include "Widgets/Text/STextBlock.h"
 
 /**
  * FStringTableSearchFilter
@@ -32,11 +35,11 @@ struct FStringTableSearchFilter
 	// Match modes (mutually exclusive for Regex / WholeWord; MatchCase combines with either)
 	bool bMatchCase  = false;
 	bool bWholeWord  = false;
-	bool bRegex      = false;
+	bool bRegex = false;
 
 	// Search scope — determines which entry fields are included in the search target.
 	// If all three are false, every entry passes (behaviour: show all).
-	bool bSearchKeys   = false;
+	bool bSearchKeys = false;
 	bool bSearchValues = true;   // Values only by default
 	bool bSearchTables = false;
 
@@ -128,8 +131,8 @@ struct FStringTableSearchFilter
 			SearchTarget.Append(Field);
 		};
 
-		if (bSearchKeys)   { AppendField(Item->Key);              }
-		if (bSearchValues) { AppendField(Item->Value);            }
+		if (bSearchKeys) { AppendField(Item->Key); }
+		if (bSearchValues) { AppendField(Item->Value); }
 		if (bSearchTables) { AppendField(Item->TableId.ToString()); }
 
 		if (bRegex || bWholeWord)

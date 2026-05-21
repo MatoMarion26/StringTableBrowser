@@ -2,17 +2,24 @@
 
 #include "StringTableBrowserModule.h"
 
-#include "SStringTableBrowser.h"
+#include "Editor.h"
 #include "FTextStringTableBrowserDetailCustomization.h"
+#include "PropertyEditorModule.h"
+#include "PropertyHandle.h"
+#include "SStringTableBrowser.h"
+#include "StringTableBrowserSettings.h"
+#include "StringTableBrowserStyle.h"
+#include "StringTableBrowserTypes.h"
+#include "ToolMenus.h"
+#include "AssetRegistry/AssetData.h"
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "Async/Async.h"
 #include "Internationalization/StringTable.h"
 #include "Internationalization/StringTableCore.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
-#include "PropertyEditorModule.h"
-#include "StringTableBrowserStyle.h"
 #include "Serialization/JsonSerializer.h"
+#include "UObject/ObjectSaveContext.h"
 #include "Widgets/Docking/SDockTab.h"
 
 #define LOCTEXT_NAMESPACE "StringTableBrowserModule"
@@ -49,7 +56,7 @@ void FStringTableBrowserModule::RegisterMenus()
 			"OpenStringTableBrowser",
 			LOCTEXT("OpenStringTableBrowser", "String Table Browser"),
 			LOCTEXT("OpenStringTableBrowserTooltip", "Open the String Table Browser panel."),
-			FSlateIcon(FAppStyle::GetAppStyleSetName(), "Icons.Search"),
+			FSlateIcon(FAppStyle::GetAppStyleSetName(), StringTableBrowserIcons::OpenBrowserSearch),
 		FUIAction(FExecuteAction::CreateRaw(this, &FStringTableBrowserModule::PluginButtonClicked)
 			)
 		);
@@ -96,6 +103,9 @@ void FStringTableBrowserModule::StartupModule()
 	AssetRegistryModule.Get().OnAssetAdded().AddRaw(  this, &FStringTableBrowserModule::OnAssetAdded);
 	AssetRegistryModule.Get().OnAssetRemoved().AddRaw( this, &FStringTableBrowserModule::OnAssetRemoved);
 	AssetRegistryModule.Get().OnAssetUpdated().AddRaw( this, &FStringTableBrowserModule::OnAssetUpdated);
+	
+	// Subscribe to package save updates to ensure references are updated after individual key edits.
+	UPackage::PackageSavedWithContextEvent.AddRaw(this, &FStringTableBrowserModule::OnPackageSaved);
 
 	FPropertyEditorModule& PropertyModule =
 			FModuleManager::LoadModuleChecked<FPropertyEditorModule>("PropertyEditor");
@@ -104,13 +114,14 @@ void FStringTableBrowserModule::StartupModule()
 	// before adding any buttons so only one path is active at a time.
 	GlobalRowExtensionHandle =
 		PropertyModule.GetGlobalRowExtensionDelegate().AddStatic(
-			&FTextStringTableBrowserDetailCustomization::OnGeneratePropertyRowExtension);
+			&FTextStringTableBrowserDetailCustomization::OnGeneratePropertyRowExtension
+		);
 
 	// Next-to-label customization — always registered, same internal gate.
-	PropertyModule.RegisterCustomClassLayout(
-		"Object",
-		FOnGetDetailCustomizationInstance::CreateStatic(
-			&FTextStringTableBrowserDetailCustomization::MakeInstance));
+	PropertyModule.RegisterCustomClassLayout("Object", FOnGetDetailCustomizationInstance::CreateStatic(
+			&FTextStringTableBrowserDetailCustomization::MakeInstance
+		)
+	);
 
 	PropertyModule.NotifyCustomizationModuleChanged();
 	
@@ -119,12 +130,14 @@ void FStringTableBrowserModule::StartupModule()
 		FName("StringTableBrowser"),
 		FOnSpawnTab::CreateRaw(this, &FStringTableBrowserModule::OnSpawnPluginTab))
 		.SetDisplayName(LOCTEXT("StringTableBrowserTab", "String Table Browser"))
-		.SetIcon(FSlateIcon(FAppStyle::GetAppStyleSetName(), "Icons.Search"))
-		.SetMenuType(ETabSpawnerMenuType::Hidden); // Hidden because we manage the menu entry ourselves
+		.SetIcon(FSlateIcon(FAppStyle::GetAppStyleSetName(), StringTableBrowserIcons::OpenBrowserSearch))
+		.SetMenuType(ETabSpawnerMenuType::Hidden // Hidden because we manage the menu entry ourselves
+	); 
 
 	// Register menus (deferred so the editor toolbar is ready)
 	UToolMenus::RegisterStartupCallback(
-		FSimpleMulticastDelegate::FDelegate::CreateRaw(this, &FStringTableBrowserModule::RegisterMenus));
+		FSimpleMulticastDelegate::FDelegate::CreateRaw(this, &FStringTableBrowserModule::RegisterMenus)
+	);
 }
 
 void FStringTableBrowserModule::ShutdownModule()
@@ -141,6 +154,8 @@ void FStringTableBrowserModule::ShutdownModule()
 		AssetRegistry.OnAssetRemoved().RemoveAll(this);
 		AssetRegistry.OnAssetUpdated().RemoveAll(this);
 	}
+	
+	UPackage::PackageSavedWithContextEvent.RemoveAll(this);
 
 	if (FModuleManager::Get().IsModuleLoaded("PropertyEditor"))
 	{
@@ -248,8 +263,10 @@ void FStringTableBrowserModule::SaveCacheToDisk()
 	// Snapshot under lock, then do all I/O outside the lock to minimise contention
 	TMap<FName, TArray<TSharedPtr<FStringTableBrowserEntry>>> CacheSnapshot;
 	{
-		FScopeLock Lock(&CacheLock);
-		CacheSnapshot = GroupedCache;
+		{
+			FScopeLock Lock(&CacheLock);
+			CacheSnapshot = GroupedCache;
+		}
 	}
 
 	TSharedPtr<FJsonObject> RootObject = MakeShared<FJsonObject>();
@@ -288,6 +305,32 @@ void FStringTableBrowserModule::SaveCacheToDisk()
 	{
 		FFileHelper::SaveStringToFile(OutputString, *GetCacheFilePath());
 	}
+	
+	BroadcastCacheUpdated();
+}
+
+void FStringTableBrowserModule::ScheduleDiskCacheSave()
+{
+	bDiskCacheDirty = true;
+
+	// Reset the timer on every call — only fires after the burst settles
+	if (GEditor)
+	{
+		GEditor->GetTimerManager()->ClearTimer(DiskSaveTimerHandle);
+		GEditor->GetTimerManager()->SetTimer(
+			DiskSaveTimerHandle,
+			[this]()
+			{
+				if (bDiskCacheDirty)
+				{
+					SaveCacheToDisk();
+					bDiskCacheDirty = false;
+				}
+			},
+			UStringTableBrowserSettings::Get()->SaveCacheToDiskDelay, /*InRate*/
+			false /*InbLoop*/
+		);
+	}
 }
 
 // -------------------------------------------------------------------------
@@ -305,7 +348,8 @@ void FStringTableBrowserModule::ForceRebuildCache()
 
 		TArray<FAssetData> AssetDataList;
 		AssetRegistryModule.Get().GetAssetsByClass(
-			UStringTable::StaticClass()->GetClassPathName(), AssetDataList);
+			UStringTable::StaticClass()->GetClassPathName(), AssetDataList
+		);
 
 		for (const FAssetData& AssetData : AssetDataList)
 		{
@@ -313,7 +357,8 @@ void FStringTableBrowserModule::ForceRebuildCache()
 			// Loading everything synchronously here would cause severe hitches on
 			// large projects. Assets load lazily as they are opened by the user.
 			UStringTable* Table = Cast<UStringTable>(
-				FindObject<UStringTable>(nullptr, *AssetData.GetObjectPathString()));
+				FindObject<UStringTable>(nullptr, *AssetData.GetObjectPathString())
+			);
 
 			if (Table)
 			{
@@ -325,7 +370,6 @@ void FStringTableBrowserModule::ForceRebuildCache()
 	}
 
 	SaveCacheToDisk();
-	BroadcastCacheUpdated();
 }
 
 // -------------------------------------------------------------------------
@@ -337,8 +381,7 @@ void FStringTableBrowserModule::OnAssetRegistryFilesLoaded()
 	// Self-remove immediately — this delegate must fire at most once
 	if (FModuleManager::Get().IsModuleLoaded("AssetRegistry"))
 	{
-		FModuleManager::GetModuleChecked<FAssetRegistryModule>("AssetRegistry")
-			.Get().OnFilesLoaded().RemoveAll(this);
+		FModuleManager::GetModuleChecked<FAssetRegistryModule>("AssetRegistry").Get().OnFilesLoaded().RemoveAll(this);
 	}
 
 	ForceRebuildCache();
@@ -368,10 +411,8 @@ void FStringTableBrowserModule::OnAssetAdded(const FAssetData& AssetData)
 		{
 			FScopeLock Lock(&CacheLock);
 			CacheSingleStringTable(AssetData, Table);
-			RebuildFlatCache();
 		}
-		SaveCacheToDisk();
-		BroadcastCacheUpdated();
+		ScheduleDiskCacheSave();
 	}
 }
 
@@ -388,8 +429,7 @@ void FStringTableBrowserModule::OnAssetRemoved(const FAssetData& AssetData)
 		RebuildFlatCache();
 	}
 
-	SaveCacheToDisk();
-	BroadcastCacheUpdated();
+	ScheduleDiskCacheSave();
 }
 
 void FStringTableBrowserModule::OnAssetUpdated(const FAssetData& AssetData)
@@ -410,39 +450,43 @@ void FStringTableBrowserModule::OnAssetUpdated(const FAssetData& AssetData)
 			CacheSingleStringTable(AssetData, Table);
 			RebuildFlatCache();
 		}
-		SaveCacheToDisk();
-		BroadcastCacheUpdated();
+
+		ScheduleDiskCacheSave();
 	}
 }
 
-void FStringTableBrowserModule::OnGenerateGlobalRowExtension(
-	const FOnGenerateGlobalRowExtensionArgs& Args,
-	TArray<FPropertyRowExtensionButton>& OutExtensionButtons
+void FStringTableBrowserModule::OnPackageSaved(
+	const FString& PackageFilename, 
+	UPackage* Package,
+	FObjectPostSaveContext ObjectSaveContext
 )
 {
-	if (Args.PropertyHandle.IsValid() && Args.PropertyHandle->GetProperty())
-	{
-		// Check if the property being drawn is an FText Property
-		if (FTextProperty* TextProp = CastField<FTextProperty>(Args.PropertyHandle->GetProperty()))
+	// Walk the package to find a UStringTable object.
+	// Most string table packages contain exactly one.
+	UStringTable* Table = nullptr;
+	ForEachObjectWithPackage(Package, 
+		[&Table](UObject* Object) -> bool
 		{
-			FPropertyRowExtensionButton ExtensionButton;
-            
-			ExtensionButton.Icon = FSlateIcon(FAppStyle::GetAppStyleSetName(), "Icons.Info");
-			ExtensionButton.ToolTip = FText::FromString("Open the String Table Browser Dropdown.");
-            
-			// Define what happens when the user clicks the button
-			ExtensionButton.UIAction = FUIAction(
-				FExecuteAction::CreateLambda([PropHandle = Args.PropertyHandle]()
-				{
-					// Your logic goes here
-					UE_LOG(LogTemp, Warning, TEXT("Global FText button clicked!"));
-				})
-			);
-            
-			// Add it to the row
-			OutExtensionButtons.Add(ExtensionButton);
-		}
+			Table = Cast<UStringTable>(Object);
+			return Table == nullptr; // returning false stops iteration
+		},
+		false /*bIncludeNestedObjects=*/
+	);
+
+	if (!Table)
+	{
+		return;
 	}
+	
+	{
+		const FAssetData AssetData(Table);
+		FScopeLock Lock(&CacheLock);
+		RemoveStringTableFromCache(AssetData.PackageName);
+		CacheSingleStringTable(AssetData, Table);
+		RebuildFlatCache();
+	}
+
+	ScheduleDiskCacheSave();
 }
 
 // -------------------------------------------------------------------------
@@ -451,7 +495,8 @@ void FStringTableBrowserModule::OnGenerateGlobalRowExtension(
 
 void FStringTableBrowserModule::CacheSingleStringTable(
 	const FAssetData& AssetData,
-	UStringTable*     Table)
+	const UStringTable* Table
+)
 {
 	TArray<TSharedPtr<FStringTableBrowserEntry>> TableEntries;
 
@@ -459,13 +504,14 @@ void FStringTableBrowserModule::CacheSingleStringTable(
 		[&](const FString& InKey, const FString& InSourceString)
 		{
 			TSharedPtr<FStringTableBrowserEntry> Entry = MakeShared<FStringTableBrowserEntry>();
-			Entry->TableId   = AssetData.AssetName;
+			Entry->TableId = AssetData.AssetName;
 			Entry->AssetPath = AssetData.ToSoftObjectPath();
-			Entry->Key       = InKey;
-			Entry->Value     = InSourceString;
+			Entry->Key = InKey;
+			Entry->Value = InSourceString;
 			TableEntries.Add(Entry);
 			return true; // continue enumeration
-		});
+		}
+	);
 
 	GroupedCache.Add(AssetData.PackageName, MoveTemp(TableEntries));
 }
@@ -494,10 +540,15 @@ void FStringTableBrowserModule::BroadcastCacheUpdated()
 	{
 		// Asset Registry callbacks can arrive on background threads in some engine versions.
 		// Slate is not thread-safe, so always marshal broadcasts to the game thread.
-		AsyncTask(ENamedThreads::GameThread, [this]()
-		{
-			OnCacheUpdated.Broadcast();
-		});
+		AsyncTask(ENamedThreads::GameThread, 
+			[]()
+			{
+				if (auto* const Module = FStringTableBrowserModule::GetModulePtr())
+				{
+					Module->OnCacheUpdated.Broadcast();
+				}
+			}
+		);
 	}
 }
 

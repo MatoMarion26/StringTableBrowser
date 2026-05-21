@@ -13,7 +13,8 @@ public class StringTableBrowser : ModuleRules
 			"Core",
 			"DeveloperSettings",
 			"InputCore",
-			"Projects"
+			"Projects",
+			"PropertyEditor"
 		});
 
 		PrivateDependencyModuleNames.AddRange(new string[]
@@ -35,7 +36,6 @@ public class StringTableBrowser : ModuleRules
 
 			// Details panel customization
 			"DetailCustomizations",
-			"PropertyEditor",
 
 			// IAssetManagerEditorModule — opens the native Reference Viewer
 			"AssetManagerEditor",

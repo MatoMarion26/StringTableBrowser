@@ -1,16 +1,18 @@
 // Copyright (c) 2026 Mato Marion. All Rights Reserved.
 
 #include "SStringTableBrowserPickerDropdown.h"
+
+#include "StringTableBrowserHelpers.h"
 #include "StringTableBrowserModule.h"
+#include "StringTableBrowserTypes.h"
+#include "Framework/Application/SlateApplication.h"
 #include "Framework/Docking/TabManager.h"
-#include "Widgets/Input/SButton.h"
-#include "Widgets/Input/SCheckBox.h"
+#include "Styling/AppStyle.h"
 #include "Widgets/Images/SImage.h"
+#include "Widgets/Input/SButton.h"
 #include "Widgets/Layout/SBox.h"
 #include "Widgets/Layout/SSeparator.h"
 #include "Widgets/Text/STextBlock.h"
-#include "Styling/AppStyle.h"
-#include "Windows/WindowsPlatformApplicationMisc.h"
 
 #define LOCTEXT_NAMESPACE "StringTablePickerDropdown"
 
@@ -18,8 +20,7 @@
 // SPickerRow — private row widget for the picker dropdown
 // -------------------------------------------------------------------------
 
-class SPickerRow
-	: public SMultiColumnTableRow<TSharedPtr<FStringTableBrowserEntry>>
+class SPickerRow : public SMultiColumnTableRow<TSharedPtr<FStringTableBrowserEntry>>
 {
 public:
 
@@ -30,10 +31,11 @@ public:
 	SLATE_END_ARGS()
 
 	void Construct(
-		const FArguments&                 InArgs,
-		const TSharedRef<STableViewBase>& InOwnerTable)
+		const FArguments& InArgs,
+		const TSharedRef<STableViewBase>& InOwnerTable
+	)
 	{
-		Item           = InArgs._Item;
+		Item = InArgs._Item;
 		OnApplyClicked = InArgs._OnApplyClicked;
 		OnCopyKeyClicked = InArgs._OnCopyKeyClicked;
 
@@ -43,30 +45,29 @@ public:
 
 	virtual TSharedRef<SWidget> GenerateWidgetForColumn(const FName& ColumnName) override
 	{
-		if (ColumnName == "Key")
+		if (ColumnName == StringTableBrowserColumns::Key)
 		{
 			return SNew(SBox).Padding(4.0f)
 				[ SNew(STextBlock).Text(FText::FromString(Item->Key)) ];
 		}
 
-		if (ColumnName == "Value")
+		if (ColumnName == StringTableBrowserColumns::Value)
 		{
 			return SNew(SBox).Padding(4.0f)
 				[ SNew(STextBlock).Text(FText::FromString(Item->Value)) ];
 		}
 
-		if (ColumnName == "Source")
+		if (ColumnName == StringTableBrowserColumns::Source)
 		{
 			return SNew(SBox).Padding(4.0f)
 				[ SNew(STextBlock).Text(FText::FromName(Item->TableId)) ];
 		}
 
-		if (ColumnName == "Actions")
+		if (ColumnName == StringTableBrowserColumns::Actions)
 		{
 			return SNew(SHorizontalBox)
 			// Apply buton
 			+SHorizontalBox::Slot()
-			.FillWidth(1)
 			.VAlign(VAlign_Center)
 			.AutoWidth()
 			[
@@ -80,13 +81,12 @@ public:
 				.VAlign(VAlign_Center)
 				[
 					SNew(SImage)
-					.Image(FAppStyle::GetBrush("Icons.Check"))
+					.Image(FAppStyle::GetBrush(StringTableBrowserIcons::Check))
 					.DesiredSizeOverride(FVector2D(16.0f, 16.0f))
 				]
 			]
 			// Copy button 
 			+SHorizontalBox::Slot()
-			.FillWidth(1)
 			.VAlign(VAlign_Center)
 			.AutoWidth()
 			[
@@ -100,7 +100,7 @@ public:
 				.ContentPadding(FMargin(4.0f, 2.0f))
 				[
 					SNew(SImage)
-					.Image(FAppStyle::GetBrush("Icons.Clipboard"))
+					.Image(FAppStyle::GetBrush(StringTableBrowserIcons::Copy))
 					.DesiredSizeOverride(FVector2D(16.0f, 16.0f))
 				]
 			];
@@ -122,45 +122,28 @@ private:
 
 void SStringTableBrowserPickerDropdown::Construct(const FArguments& InArgs)
 {
-	OnEntryPicked               = InArgs._OnEntryPicked;
+	OnEntryPicked = InArgs._OnEntryPicked;
 	OnSearchTextChangedDelegate = InArgs._OnSearchTextChanged;
 
 	// Scope defaults: values only, matching the main viewer's default
 	Filter.bSearchValues = true;
-	Filter.bSearchKeys   = false;
+	Filter.bSearchKeys = false;
 	Filter.bSearchTables = false;
-
-	// ---- Toggle helper ------------------------------------------------------
-
-	auto MakeToggle = [this](const FText& Label, const FText& Tooltip,
-	                         bool bDefault, TFunction<void(bool)> Setter)
-	{
-		return SNew(SCheckBox)
-			.IsChecked(bDefault ? ECheckBoxState::Checked : ECheckBoxState::Unchecked)
-			.ToolTipText(Tooltip)
-			.OnCheckStateChanged_Lambda([this, Setter](ECheckBoxState NewState)
-			{
-				Setter(NewState == ECheckBoxState::Checked);
-				Filter.Compile();
-				ApplyFilter();
-			})
-			[ SNew(STextBlock).Text(Label) ];
-	};
-
+	
 	// ---- Header row ---------------------------------------------------------
 
 	TSharedRef<SHeaderRow> HeaderRow = SNew(SHeaderRow)
-		+ SHeaderRow::Column("Key")
-		  .DefaultLabel(LOCTEXT("KeyCol",    "Key"))
+		+ SHeaderRow::Column(StringTableBrowserColumns::Key)
+		  .DefaultLabel(LOCTEXT("KeyCol", "Key"))
 		  .FillWidth(0.28f)
-		+ SHeaderRow::Column("Value")
-		  .DefaultLabel(LOCTEXT("ValCol",    "Value"))
+		+ SHeaderRow::Column(StringTableBrowserColumns::Value)
+		  .DefaultLabel(LOCTEXT("ValCol", "Value"))
 		  .FillWidth(0.42f)
-		+ SHeaderRow::Column("Source")
+		+ SHeaderRow::Column(StringTableBrowserColumns::Source)
 		  .DefaultLabel(LOCTEXT("SourceCol", "Table"))
 		  .FillWidth(0.20f)
-		+ SHeaderRow::Column("Actions")
-		  .DefaultLabel(LOCTEXT("ActionsCol",  "Actions"))
+		+ SHeaderRow::Column(StringTableBrowserColumns::Actions)
+		  .DefaultLabel(LOCTEXT("ActionsCol", "Actions"))
 		  .FixedWidth(60.0f);
 
 	// ---- Widget tree --------------------------------------------------------
@@ -192,7 +175,7 @@ void SStringTableBrowserPickerDropdown::Construct(const FArguments& InArgs)
 
 				+ SHorizontalBox::Slot().AutoWidth().Padding(0.0f, 0.0f, 8.0f, 0.0f)
 				[
-					MakeToggle(
+					FStringTableBrowserHelpers::MakeFilterCheckBox(
 						LOCTEXT("MatchCase", "Match Case"),
 						LOCTEXT("MatchCaseTooltip", "When enabled, the search is case-sensitive."),
 						false,
@@ -201,7 +184,7 @@ void SStringTableBrowserPickerDropdown::Construct(const FArguments& InArgs)
 
 				+ SHorizontalBox::Slot().AutoWidth().Padding(0.0f, 0.0f, 8.0f, 0.0f)
 				[
-					MakeToggle(
+					FStringTableBrowserHelpers::MakeFilterCheckBox(
 						LOCTEXT("WholeWord", "Whole Word"),
 						LOCTEXT("WholeWordTooltip",
 							"When enabled, only complete words are matched.\n"
@@ -212,7 +195,7 @@ void SStringTableBrowserPickerDropdown::Construct(const FArguments& InArgs)
 
 				+ SHorizontalBox::Slot().AutoWidth()
 				[
-					MakeToggle(
+					FStringTableBrowserHelpers::MakeFilterCheckBox(
 						LOCTEXT("Regex", "Regex"),
 						LOCTEXT("RegexTooltip",
 							"Treat the search input as a regular expression (ICU syntax)."),
@@ -239,7 +222,7 @@ void SStringTableBrowserPickerDropdown::Construct(const FArguments& InArgs)
 
 				+ SHorizontalBox::Slot().AutoWidth().Padding(0.0f, 0.0f, 8.0f, 0.0f)
 				[
-					MakeToggle(
+					FStringTableBrowserHelpers::MakeFilterCheckBox(
 						LOCTEXT("ScopeKeys", "Keys"),
 						LOCTEXT("ScopeKeysTooltip",
 							"Include the entry Key in the search.\n"
@@ -250,7 +233,7 @@ void SStringTableBrowserPickerDropdown::Construct(const FArguments& InArgs)
 
 				+ SHorizontalBox::Slot().AutoWidth().Padding(0.0f, 0.0f, 8.0f, 0.0f)
 				[
-					MakeToggle(
+					FStringTableBrowserHelpers::MakeFilterCheckBox(
 						LOCTEXT("ScopeValues", "Values"),
 						LOCTEXT("ScopeValuesTooltip",
 							"Include the entry Value in the search.\n"
@@ -261,7 +244,7 @@ void SStringTableBrowserPickerDropdown::Construct(const FArguments& InArgs)
 
 				+ SHorizontalBox::Slot().AutoWidth()
 				[
-					MakeToggle(
+					FStringTableBrowserHelpers::MakeFilterCheckBox(
 						LOCTEXT("ScopeTable", "String Tables"),
 						LOCTEXT("ScopeTableTooltip",
 							"Include the source String Table name in the search."),
@@ -284,7 +267,6 @@ void SStringTableBrowserPickerDropdown::Construct(const FArguments& InArgs)
 				+ SOverlay::Slot()
 				[
 					SAssignNew(ListView, SListView<TSharedPtr<FStringTableBrowserEntry>>)
-					.ItemHeight(24)
 					.ListItemsSource(&FilteredEntries)
 					.OnGenerateRow(this, &SStringTableBrowserPickerDropdown::GenerateRow)
 					.HeaderRow(HeaderRow)
@@ -345,7 +327,7 @@ void SStringTableBrowserPickerDropdown::Construct(const FArguments& InArgs)
 						+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(0.0f, 0.0f, 4.0f, 0.0f)
 						[
 							SNew(SImage)
-							.Image(FAppStyle::GetBrush("Icons.OpenInExternalEditor"))
+							.Image(FAppStyle::GetBrush(StringTableBrowserIcons::OpenBrowserWindow))
 							.DesiredSizeOverride(FVector2D(14.0f, 14.0f))
 						]
 
@@ -362,11 +344,9 @@ void SStringTableBrowserPickerDropdown::Construct(const FArguments& InArgs)
 	];
 
 	// Subscribe to cache updates so the results list stays fresh while open
-	if (FModuleManager::Get().IsModuleLoaded("StringTableBrowser"))
+	if (auto* const Module = FStringTableBrowserModule::GetModulePtr())
 	{
-		FStringTableBrowserModule& Module =
-			FModuleManager::GetModuleChecked<FStringTableBrowserModule>("StringTableBrowser");
-		Module.OnCacheUpdated.AddSP(this, &SStringTableBrowserPickerDropdown::OnCacheUpdated);
+		Module->OnCacheUpdated.AddSP(this, &SStringTableBrowserPickerDropdown::OnCacheUpdated);
 	}
 
 	// Pre-populate the search box if an initial value was provided
@@ -385,11 +365,9 @@ void SStringTableBrowserPickerDropdown::Construct(const FArguments& InArgs)
 
 SStringTableBrowserPickerDropdown::~SStringTableBrowserPickerDropdown()
 {
-	if (FModuleManager::Get().IsModuleLoaded("StringTableBrowser"))
+	if (auto* const Module = FStringTableBrowserModule::GetModulePtr())
 	{
-		FStringTableBrowserModule& Module =
-			FModuleManager::GetModuleChecked<FStringTableBrowserModule>("StringTableBrowser");
-		Module.OnCacheUpdated.RemoveAll(this);
+		Module->OnCacheUpdated.RemoveAll(this);
 	}
 }
 
@@ -411,7 +389,8 @@ void SStringTableBrowserPickerDropdown::FocusSearchBox()
 
 TSharedRef<ITableRow> SStringTableBrowserPickerDropdown::GenerateRow(
 	TSharedPtr<FStringTableBrowserEntry> Item,
-	const TSharedRef<STableViewBase>&   OwnerTable)
+	const TSharedRef<STableViewBase>& OwnerTable
+)
 {
 	return SNew(SPickerRow, OwnerTable)
 		.Item(Item)
@@ -440,7 +419,7 @@ void SStringTableBrowserPickerDropdown::OnCacheUpdated()
 	ApplyFilter();
 }
 
-FReply SStringTableBrowserPickerDropdown::OnApplyClicked(TSharedPtr<FStringTableBrowserEntry> Item)
+FReply SStringTableBrowserPickerDropdown::OnApplyClicked(TSharedPtr<FStringTableBrowserEntry> Item) const
 {
 	if (Item.IsValid() && OnEntryPicked.IsBound())
 	{
@@ -454,17 +433,9 @@ FReply SStringTableBrowserPickerDropdown::OnApplyClicked(TSharedPtr<FStringTable
 	return FReply::Handled();
 }
 
-FReply SStringTableBrowserPickerDropdown::OnCopyKeyClicked(TSharedPtr<FStringTableBrowserEntry> Item)
+FReply SStringTableBrowserPickerDropdown::OnCopyKeyClicked(TSharedPtr<FStringTableBrowserEntry> Item) const
 {
-	if (Item.IsValid())
-	{
-		const FString Reference = FString::Printf(
-			TEXT("LOCTABLE(\"%s\", \"%s\")"),
-			*Item->AssetPath.ToString(),
-			*Item->Key);
-
-		FPlatformApplicationMisc::ClipboardCopy(*Reference);
-	}
+	FStringTableBrowserHelpers::CopyStringTableEntry(Item);
 	return FReply::Handled();
 }
 
@@ -487,12 +458,9 @@ void SStringTableBrowserPickerDropdown::ApplyFilter()
 		return;
 	}
 
-	if (FModuleManager::Get().IsModuleLoaded("StringTableBrowser"))
+	if (const auto* const Module = FStringTableBrowserModule::GetModulePtr())
 	{
-		FStringTableBrowserModule& Module =
-			FModuleManager::GetModuleChecked<FStringTableBrowserModule>("StringTableBrowser");
-
-		for (const TSharedPtr<FStringTableBrowserEntry>& Entry : Module.GetCachedEntriesCopy())
+		for (const TSharedPtr<FStringTableBrowserEntry>& Entry : Module->GetCachedEntriesCopy())
 		{
 			if (Filter.PassesFilter(Entry))
 			{

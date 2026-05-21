@@ -12,7 +12,7 @@
 /**
  * Delegate fired when the user clicks Apply on a result row.
  * TableId — the string table's namespace identifier (FName of the asset name).
- * Key     — the entry key within that table.
+ * Key — the entry key within that table.
  */
 DECLARE_DELEGATE_TwoParams(FOnStringTableEntryPicked, FName /*TableId*/, FString /*Key*/);
 
@@ -54,16 +54,17 @@ private:
 
 	TSharedRef<ITableRow> GenerateRow(
 		TSharedPtr<FStringTableBrowserEntry> Item,
-		const TSharedRef<STableViewBase>&   OwnerTable);
+		const TSharedRef<STableViewBase>& OwnerTable
+	);
 
 	// -------------------------------------------------------------------------
 	// Event handlers
 	// -------------------------------------------------------------------------
 
-	void   OnSearchTextChangedInternal(const FText& InText);
-	void   OnCacheUpdated();
-	FReply OnApplyClicked(TSharedPtr<FStringTableBrowserEntry> Item);
-	FReply OnCopyKeyClicked(TSharedPtr<FStringTableBrowserEntry> Item);
+	void OnSearchTextChangedInternal(const FText& InText);
+	void OnCacheUpdated();
+	FReply OnApplyClicked(TSharedPtr<FStringTableBrowserEntry> Item) const;
+	FReply OnCopyKeyClicked(TSharedPtr<FStringTableBrowserEntry> Item) const;
 
 	// -------------------------------------------------------------------------
 	// Filter
@@ -75,11 +76,11 @@ private:
 	// Data
 	// -------------------------------------------------------------------------
 
-	TArray<TSharedPtr<FStringTableBrowserEntry>>        FilteredEntries;
+	TArray<TSharedPtr<FStringTableBrowserEntry>> FilteredEntries;
 	TSharedPtr<SListView<TSharedPtr<FStringTableBrowserEntry>>> ListView;
-	TSharedPtr<SSearchBox>                             SearchBox;
+	TSharedPtr<SSearchBox> SearchBox;
 
-	FStringTableSearchFilter           Filter;
-	FOnStringTableEntryPicked          OnEntryPicked;
-	TDelegate<void(const FString&)>    OnSearchTextChangedDelegate;
+	FStringTableSearchFilter Filter;
+	FOnStringTableEntryPicked OnEntryPicked;
+	TDelegate<void(const FString&)> OnSearchTextChangedDelegate;
 };

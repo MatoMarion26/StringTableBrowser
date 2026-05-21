@@ -6,6 +6,10 @@
 #include "IDetailCustomization.h"
 #include "PropertyEditorDelegates.h"
 
+class IDetailChildrenBuilder;
+class IPropertyTypeCustomizationUtils;
+class IDetailCustomization;
+
 class FTextStringTableBrowserDetailCustomization : public IDetailCustomization
 {
 public:
@@ -34,6 +38,4 @@ private:
 		TSharedPtr<IPropertyHandle> PropertyHandle,
 		TSharedPtr<FString> LastSearchText
 	);
-	
-	FString LastSearchText;
 };

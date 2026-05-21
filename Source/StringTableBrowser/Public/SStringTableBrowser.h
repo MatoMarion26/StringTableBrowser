@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "StringTableBrowserModule.h"
+#include "StringTableBrowserTypes.h"
 #include "StringTableSearchFilter.h"
 #include "Widgets/SCompoundWidget.h"
 #include "Widgets/Views/SListView.h"
@@ -37,7 +38,8 @@ private:
 
 	TSharedRef<ITableRow> GenerateRow(
 		TSharedPtr<FStringTableBrowserEntry> Item,
-		const TSharedRef<STableViewBase>&    OwnerTable);
+		const TSharedRef<STableViewBase>& OwnerTable
+	);
 
 	// -------------------------------------------------------------------------
 	// Data management
@@ -71,8 +73,9 @@ private:
 
 	void OnSortColumnHeader(
 		EColumnSortPriority::Type SortPriority,
-		const FName&              ColumnId,
-		EColumnSortMode::Type     NewSortMode);
+		const FName& ColumnId,
+		EColumnSortMode::Type NewSortMode
+	);
 
 	EColumnSortMode::Type GetColumnSortMode(FName ColumnId) const;
 
@@ -83,13 +86,13 @@ private:
 	// -------------------------------------------------------------------------
 
 	FReply OnEditStringTableClicked(FSoftObjectPath AssetPath);
-	FReply OnCopyKeyClicked(TSharedPtr<FStringTableBrowserEntry> Item);
+	FReply OnCopyKeyClicked(TSharedPtr<FStringTableBrowserEntry> Item) const;
 
 	/**
 	 * Opens Unreal's native Reference Viewer for the source string table asset,
 	 * showing all assets that reference or are referenced by it.
 	 */
-	FReply OnViewReferencesClicked(FSoftObjectPath AssetPath);
+	FReply OnViewReferencesClicked(FSoftObjectPath AssetPath) const;
 
 	// -------------------------------------------------------------------------
 	// Data
@@ -112,7 +115,4 @@ private:
 	 * before the previous interval has elapsed.
 	 */
 	TWeakPtr<FActiveTimerHandle> SearchDebounceTimerHandle;
-
-	/** Debounce interval in seconds. Filter runs this long after the last keystroke. */
-	static constexpr float SearchDebounceDelay = 0.15f;
 };

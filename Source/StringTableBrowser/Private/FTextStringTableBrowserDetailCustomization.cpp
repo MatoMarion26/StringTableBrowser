@@ -10,9 +10,11 @@
 #include "IDetailPropertyRow.h"
 #include "PropertyHandle.h"
 #include "ScopedTransaction.h"
+#include "StringTableBrowserTypes.h"
 #include "Styling/AppStyle.h"
 #include "Widgets/Images/SImage.h"
 #include "Widgets/Input/SButton.h"
+#include "UObject/TextProperty.h"
 
 #define LOCTEXT_NAMESPACE "FTextStringTableBrowserDetailCustomization"
 
@@ -75,25 +77,26 @@ void FTextStringTableBrowserDetailCustomization::OpenPickerDropdown(
 
 void FTextStringTableBrowserDetailCustomization::OnGeneratePropertyRowExtension(
     const FOnGenerateGlobalRowExtensionArgs& InArgs,
-    TArray<FPropertyRowExtensionButton>&     OutExtensionButtons)
+    TArray<FPropertyRowExtensionButton>& OutExtensionButtons
+)
 {
     // Only active when the setting is ExtensionBar
     if (UStringTableBrowserSettings::Get()->ButtonPlacement !=
-        EStringTableBrowserButtonPlacement::ExtensionBar)
+        EStringTableBrowserButtonPlacement::ExtensionBar
+    )
     {
         return;
     }
 
-    if (!InArgs.PropertyHandle.IsValid())
+    if (!InArgs.PropertyHandle.IsValid() || 
+    	!InArgs.PropertyHandle->GetProperty() ||
+        !InArgs.PropertyHandle->GetProperty()->IsA<FTextProperty>()
+    )
     {
         return;
     }
 
-    if (!InArgs.PropertyHandle->GetProperty() ||
-        !InArgs.PropertyHandle->GetProperty()->IsA<FTextProperty>())
-    {
-        return;
-    }
+	UE_LOG(LogTemp, Log, TEXT("StringTableBrowser: ExtensionBar - Property: %s"), *InArgs.PropertyHandle->GetProperty()->GetName());
 
     TSharedPtr<IPropertyHandle> PropertyHandle = InArgs.PropertyHandle;
     TSharedPtr<FString> LastSearchText = MakeShared<FString>();
@@ -103,8 +106,8 @@ void FTextStringTableBrowserDetailCustomization::OnGeneratePropertyRowExtension(
         *LastSearchText = CurrentValue.ToString();
     }
 
-    FPropertyRowExtensionButton& Button = OutExtensionButtons.AddDefaulted_GetRef();
-    Button.Icon    = FSlateIcon(FAppStyle::GetAppStyleSetName(), "Icons.Search");
+	FPropertyRowExtensionButton Button;
+    Button.Icon    = FSlateIcon(FAppStyle::GetAppStyleSetName(), StringTableBrowserIcons::OpenBrowserSearch);
     Button.Label   = LOCTEXT("SearchBtnLabel",   "Search String Tables");
     Button.ToolTip = LOCTEXT("SearchBtnTooltip",
         "Search all String Tables and bind this FText property to the "
@@ -117,6 +120,8 @@ void FTextStringTableBrowserDetailCustomization::OnGeneratePropertyRowExtension(
         }),
         FCanExecuteAction()
     );
+	
+	OutExtensionButtons.Insert(MoveTemp(Button), 0);
 }
 
 // -------------------------------------------------------------------------
@@ -129,7 +134,8 @@ TSharedRef<IDetailCustomization> FTextStringTableBrowserDetailCustomization::Mak
 }
 
 void FTextStringTableBrowserDetailCustomization::CustomizeDetails(
-    IDetailLayoutBuilder& DetailBuilder)
+    IDetailLayoutBuilder& DetailBuilder
+)
 {
     // Only active when the setting is NextToLabel
     if (UStringTableBrowserSettings::Get()->ButtonPlacement !=
@@ -137,7 +143,7 @@ void FTextStringTableBrowserDetailCustomization::CustomizeDetails(
     {
         return;
     }
-
+	
     TArray<FName> CategoryNames;
     DetailBuilder.GetCategoryNames(CategoryNames);
 
@@ -156,6 +162,8 @@ void FTextStringTableBrowserDetailCustomization::CustomizeDetails(
                 continue;
             }
 
+        	UE_LOG(LogTemp, Log, TEXT("StringTableBrowser: NextToLabel - Property: %s"), *PropHandle->GetProperty()->GetName());
+        	
             FText CurrentValue;
             PropHandle->GetValue(CurrentValue);
 
@@ -199,7 +207,7 @@ void FTextStringTableBrowserDetailCustomization::CustomizeDetails(
                     })
                     [
                         SNew(SImage)
-                        .Image(FAppStyle::GetBrush("Icons.Search"))
+                        .Image(FAppStyle::GetBrush(StringTableBrowserIcons::OpenBrowserSearch))
                         .DesiredSizeOverride(FVector2D(14.0f, 14.0f))
                     ]
                 ]

@@ -1,9 +1,8 @@
 // Copyright (c) 2026 Mato Marion. All Rights Reserved.
 
 #include "StringTableBrowserStyle.h"
-#include "Styling/SlateStyleRegistry.h"
 #include "Interfaces/IPluginManager.h"
-#include "Styling/SlateStyleMacros.h"
+#include "Styling/SlateStyleRegistry.h"
 
 TSharedPtr<FSlateStyleSet> FStringTableBrowserStyle::StyleInstance = nullptr;
 
@@ -16,10 +15,6 @@ void FStringTableBrowserStyle::Initialize()
 	// Point to the plugin's Resources/ folder
 	const FString PluginDir = IPluginManager::Get().FindPlugin("StringTableBrowser")->GetBaseDir();
 	StyleInstance->SetContentRoot(PluginDir / TEXT("Resources"));
-
-	// Register the icon — IMAGE_BRUSH resolves relative to ContentRoot
-	//StyleInstance->Set("StringTableBrowser.Icon16", new IMAGE_BRUSH("Icon16", FVector2D(16.f, 16.f)));
-	//StyleInstance->Set("StringTableBrowser.Icon40", new IMAGE_BRUSH("Icon40", FVector2D(40.f, 40.f)));
 
 	FSlateStyleRegistry::RegisterSlateStyle(*StyleInstance);
 }

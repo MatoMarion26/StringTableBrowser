@@ -1,11 +1,11 @@
 // Copyright (c) 2026 Mato Marion. All Rights Reserved.
 
 #include "SStringTableBrowser.h"
-#include "StringTableBrowserModule.h"
-#include "StringTableSearchFilter.h"
-#include "Editor.h"
-#include "HAL/PlatformApplicationMisc.h"
+
 #include "AssetManagerEditorModule.h"
+#include "Editor.h"
+#include "StringTableBrowserHelpers.h"
+#include "StringTableBrowserSettings.h"
 #include "Styling/AppStyle.h"
 #include "Subsystems/AssetEditorSubsystem.h"
 #include "Widgets/Images/SImage.h"
@@ -17,23 +17,10 @@
 #define LOCTEXT_NAMESPACE "StringTableBrowser"
 
 // -------------------------------------------------------------------------
-// Column name constants — avoids bare string literals across multiple sites
-// -------------------------------------------------------------------------
-
-namespace StringTableBrowserColumns
-{
-	static const FName Key    = "Key";
-	static const FName Value  = "Value";
-	static const FName Source = "Source";
-	static const FName Action = "Actions";
-}
-
-// -------------------------------------------------------------------------
 // SStringTableBrowserRow — private row widget for the main browser
 // -------------------------------------------------------------------------
 
-class SStringTableBrowserRow
-	: public SMultiColumnTableRow<TSharedPtr<FStringTableBrowserEntry>>
+class SStringTableBrowserRow : public SMultiColumnTableRow<TSharedPtr<FStringTableBrowserEntry>>
 {
 public:
 
@@ -45,41 +32,41 @@ public:
 	SLATE_END_ARGS()
 
 	void Construct(
-		const FArguments&                 InArgs,
-		const TSharedRef<STableViewBase>& InOwnerTableView)
+		const FArguments& InArgs,
+		const TSharedRef<STableViewBase>& InOwnerTableView
+	)
 	{
-		Item                   = InArgs._Item;
-		OnEditClicked          = InArgs._OnEditClicked;
-		OnCopyKeyClicked       = InArgs._OnCopyKeyClicked;
+		Item = InArgs._Item;
+		OnEditClicked = InArgs._OnEditClicked;
+		OnCopyKeyClicked = InArgs._OnCopyKeyClicked;
 		OnViewReferencesClicked = InArgs._OnViewReferencesClicked;
 
 		SMultiColumnTableRow<TSharedPtr<FStringTableBrowserEntry>>::Construct(
-			FSuperRowType::FArguments(), InOwnerTableView);
+			FSuperRowType::FArguments(), InOwnerTableView
+		);
 	}
 
 	virtual TSharedRef<SWidget> GenerateWidgetForColumn(const FName& ColumnName) override
 	{
-		using namespace StringTableBrowserColumns;
-
-		if (ColumnName == Key)
+		if (ColumnName == StringTableBrowserColumns::Key)
 		{
 			return SNew(SBox).Padding(5.0f)
 				[ SNew(STextBlock).Text(FText::FromString(Item->Key)) ];
 		}
 
-		if (ColumnName == Value)
+		if (ColumnName == StringTableBrowserColumns::Value)
 		{
 			return SNew(SBox).Padding(5.0f)
 				[ SNew(STextBlock).Text(FText::FromString(Item->Value)) ];
 		}
 
-		if (ColumnName == Source)
+		if (ColumnName == StringTableBrowserColumns::Source)
 		{
 			return SNew(SBox).Padding(5.0f)
 				[ SNew(STextBlock).Text(FText::FromName(Item->TableId)) ];
 		}
 
-		if (ColumnName == Action)
+		if (ColumnName == StringTableBrowserColumns::Actions)
 		{
 			// Shared icon button builder — keeps the three buttons visually consistent
 			auto MakeIconButton = [](
@@ -110,7 +97,7 @@ public:
 				[
 					MakeIconButton(
 						OnEditClicked,
-						"Icons.Edit",
+						StringTableBrowserIcons::Edit,
 						LOCTEXT("EditBtnTooltip", "Open this String Table in the asset editor."))
 				]
 
@@ -119,7 +106,7 @@ public:
 				[
 					MakeIconButton(
 						OnCopyKeyClicked,
-						"Icons.Clipboard",
+						StringTableBrowserIcons::Copy,
 						LOCTEXT("CopyKeyBtnTooltip",
 							"Copy the full LOCTABLE() reference to the clipboard."))
 				]
@@ -129,7 +116,7 @@ public:
 				[
 					MakeIconButton(
 						OnViewReferencesClicked,
-						"Icons.Find",
+						StringTableBrowserIcons::FindReferences,
 						LOCTEXT("ViewRefsBtnTooltip",
 							"Open the Reference Viewer for the source String Table asset.\n"
 							"Shows all assets that reference or are referenced by this table."))
@@ -149,37 +136,13 @@ private:
 };
 
 // -------------------------------------------------------------------------
-// MakeFilterCheckBox — shared helper for building labelled toggle checkboxes
-// -------------------------------------------------------------------------
-
-/**
- * Creates a checkbox with a label and tooltip whose state is forwarded to
- * the caller via a TFunction. Used for both mode and scope toggles.
- */
-static TSharedRef<SWidget> MakeFilterCheckBox(
-	const FText&          Label,
-	const FText&          Tooltip,
-	bool                  bInitiallyChecked,
-	TFunction<void(bool)> OnChanged)
-{
-	return SNew(SCheckBox)
-		.IsChecked(bInitiallyChecked ? ECheckBoxState::Checked : ECheckBoxState::Unchecked)
-		.ToolTipText(Tooltip)
-		.OnCheckStateChanged_Lambda([OnChanged](ECheckBoxState NewState)
-		{
-			OnChanged(NewState == ECheckBoxState::Checked);
-		})
-		[ SNew(STextBlock).Text(Label) ];
-}
-
-// -------------------------------------------------------------------------
 // SStringTableBrowser
 // -------------------------------------------------------------------------
 
 void SStringTableBrowser::Construct(const FArguments& InArgs)
 {
 	CurrentSortColumn = StringTableBrowserColumns::Source;
-	CurrentSortMode   = EColumnSortMode::Ascending;
+	CurrentSortMode = EColumnSortMode::Ascending;
 
 	// ---- Header row ---------------------------------------------------------
 
@@ -203,26 +166,9 @@ void SStringTableBrowser::Construct(const FArguments& InArgs)
 		  .SortMode(this, &SStringTableBrowser::GetColumnSortMode, StringTableBrowserColumns::Source)
 		  .OnSort(this, &SStringTableBrowser::OnSortColumnHeader)
 
-		+ SHeaderRow::Column(StringTableBrowserColumns::Action)
-		  .DefaultLabel(LOCTEXT("ActionCol", "Action"))
+		+ SHeaderRow::Column(StringTableBrowserColumns::Actions)
+		  .DefaultLabel(LOCTEXT("ActionCol", "Actions"))
 		  .FixedWidth(110.0f);
-
-	// ---- Toggle helper ------------------------------------------------------
-	// For mode toggles (Match Case, Whole Word, Regex) the filter runs immediately
-	// on toggle change — debouncing only applies to the search text box since that
-	// is the only input that can fire many times per second.
-
-	auto MakeToggle = [this](const FText& Label, const FText& Tooltip,
-	                         bool bDefault, TFunction<void(bool)> Setter)
-	{
-		return MakeFilterCheckBox(Label, Tooltip, bDefault,
-			[this, Setter](bool bNewValue)
-			{
-				Setter(bNewValue);
-				Filter.Compile();
-				ApplyFilterAndSort();
-			});
-	};
 
 	// ---- Widget tree --------------------------------------------------------
 
@@ -246,35 +192,47 @@ void SStringTableBrowser::Construct(const FArguments& InArgs)
 
 			+ SHorizontalBox::Slot().AutoWidth().Padding(5.0f, 0.0f)
 			[
-				MakeToggle(
+				FStringTableBrowserHelpers::MakeFilterCheckBox(
 					LOCTEXT("MatchCase", "Match Case"),
 					LOCTEXT("MatchCaseTooltip",
 						"When enabled, the search is case-sensitive.\n"
 						"For example, \"hello\" will not match \"Hello\"."),
 					false,
-					[this](bool b) { Filter.bMatchCase = b; })
+					[this](bool b)
+					{
+						Filter.bMatchCase = b;
+						ApplyFilterAndSort();
+					})
 			]
 
 			+ SHorizontalBox::Slot().AutoWidth().Padding(5.0f, 0.0f)
 			[
-				MakeToggle(
+				FStringTableBrowserHelpers::MakeFilterCheckBox(
 					LOCTEXT("WholeWord", "Whole Word"),
 					LOCTEXT("WholeWordTooltip",
 						"When enabled, only complete words are matched.\n"
 						"For example, \"table\" will not match \"StringTable\"."),
 					false,
-					[this](bool b) { Filter.bWholeWord = b; })
+					[this](bool b)
+					{
+						Filter.bWholeWord = b;
+						ApplyFilterAndSort();
+					})
 			]
 
 			+ SHorizontalBox::Slot().AutoWidth().Padding(5.0f, 0.0f)
 			[
-				MakeToggle(
+				FStringTableBrowserHelpers::MakeFilterCheckBox(
 					LOCTEXT("Regex", "Regex"),
 					LOCTEXT("RegexTooltip",
 						"When enabled, the search input is treated as a regular expression (ICU syntax).\n"
 						"For example: \"^Hello\" matches entries that start with \"Hello\"."),
 					false,
-					[this](bool b) { Filter.bRegex = b; })
+					[this](bool b)
+					{
+						Filter.bRegex = b;
+						ApplyFilterAndSort();
+					})
 			]
 
 			+ SHorizontalBox::Slot().AutoWidth().Padding(5.0f, 0.0f)
@@ -286,10 +244,9 @@ void SStringTableBrowser::Construct(const FArguments& InArgs)
 					"Use this after syncing changes from version control."))
 				.OnClicked_Lambda([]()
 				{
-					if (FModuleManager::Get().IsModuleLoaded("StringTableBrowser"))
+					if (auto* const Module = FStringTableBrowserModule::GetModulePtr())
 					{
-						FModuleManager::GetModuleChecked<FStringTableBrowserModule>("StringTableBrowser")
-							.ForceRebuildCache();
+						Module->ForceRebuildCache();
 					}
 					return FReply::Handled();
 				})
@@ -314,37 +271,49 @@ void SStringTableBrowser::Construct(const FArguments& InArgs)
 
 			+ SHorizontalBox::Slot().AutoWidth().Padding(5.0f, 0.0f)
 			[
-				MakeToggle(
+				FStringTableBrowserHelpers::MakeFilterCheckBox(
 					LOCTEXT("ScopeKeys", "Keys"),
 					LOCTEXT("ScopeKeysTooltip",
 						"Include the entry Key in the search.\n"
 						"The key is the unique identifier used to reference a string in code,\n"
 						"e.g. \"MAIN_MENU_TITLE\"."),
 					false,
-					[this](bool b) { Filter.bSearchKeys = b; })
+					[this](bool b)
+					{
+						Filter.bSearchKeys = b;
+						ApplyFilterAndSort();
+					})
 			]
 
 			+ SHorizontalBox::Slot().AutoWidth().Padding(5.0f, 0.0f)
 			[
-				MakeToggle(
+				FStringTableBrowserHelpers::MakeFilterCheckBox(
 					LOCTEXT("ScopeValues", "Values"),
 					LOCTEXT("ScopeValuesTooltip",
 						"Include the entry Value in the search.\n"
 						"The value is the human-readable string displayed in game,\n"
 						"e.g. \"Start Game\"."),
 					true, // on by default
-					[this](bool b) { Filter.bSearchValues = b; })
+					[this](bool b)
+					{
+						Filter.bSearchValues = b;
+						ApplyFilterAndSort();
+					})
 			]
 
 			+ SHorizontalBox::Slot().AutoWidth().Padding(5.0f, 0.0f)
 			[
-				MakeToggle(
+				FStringTableBrowserHelpers::MakeFilterCheckBox(
 					LOCTEXT("ScopeTable", "String Tables"),
 					LOCTEXT("ScopeTableTooltip",
 						"Include the source String Table name in the search.\n"
 						"Useful for finding all entries from a specific table, e.g. \"UI_Strings\"."),
 					false,
-					[this](bool b) { Filter.bSearchTables = b; })
+					[this](bool b)
+					{
+						Filter.bSearchTables = b;
+						ApplyFilterAndSort();
+					})
 			]
 		]
 
@@ -357,7 +326,6 @@ void SStringTableBrowser::Construct(const FArguments& InArgs)
 			+ SOverlay::Slot()
 			[
 				SAssignNew(ListView, SListView<TSharedPtr<FStringTableBrowserEntry>>)
-				.ItemHeight(24)
 				.ListItemsSource(&FilteredEntries)
 				.OnGenerateRow(this, &SStringTableBrowser::GenerateRow)
 				.HeaderRow(HeaderRow)
@@ -382,13 +350,10 @@ void SStringTableBrowser::Construct(const FArguments& InArgs)
 		]
 	];
 
-	// Subscribe to cache updates. AddSP binds to this widget's shared-pointer
-	// lifetime, so the delegate auto-removes if the widget is destroyed.
-	if (FModuleManager::Get().IsModuleLoaded("StringTableBrowser"))
+	// Subscribe to cache updates so the results list stays fresh while open
+	if (auto* const Module = FStringTableBrowserModule::GetModulePtr())
 	{
-		FStringTableBrowserModule& Module =
-			FModuleManager::GetModuleChecked<FStringTableBrowserModule>("StringTableBrowser");
-		Module.OnCacheUpdated.AddSP(this, &SStringTableBrowser::UpdateFromCache);
+		Module->OnCacheUpdated.AddSP(this, &SStringTableBrowser::UpdateFromCache);
 	}
 
 	UpdateFromCache();
@@ -396,11 +361,9 @@ void SStringTableBrowser::Construct(const FArguments& InArgs)
 
 SStringTableBrowser::~SStringTableBrowser()
 {
-	if (FModuleManager::Get().IsModuleLoaded("StringTableBrowser"))
+	if (auto* const Module = FStringTableBrowserModule::GetModulePtr())
 	{
-		FStringTableBrowserModule& Module =
-			FModuleManager::GetModuleChecked<FStringTableBrowserModule>("StringTableBrowser");
-		Module.OnCacheUpdated.RemoveAll(this);
+		Module->OnCacheUpdated.RemoveAll(this);
 	}
 }
 
@@ -410,13 +373,14 @@ SStringTableBrowser::~SStringTableBrowser()
 
 TSharedRef<ITableRow> SStringTableBrowser::GenerateRow(
 	TSharedPtr<FStringTableBrowserEntry> Item,
-	const TSharedRef<STableViewBase>&    OwnerTable)
+	const TSharedRef<STableViewBase>& OwnerTable
+)
 {
 	return SNew(SStringTableBrowserRow, OwnerTable)
 		.Item(Item)
-		.OnEditClicked(this,           &SStringTableBrowser::OnEditStringTableClicked,  Item->AssetPath)
-		.OnCopyKeyClicked(this,        &SStringTableBrowser::OnCopyKeyClicked,          Item)
-		.OnViewReferencesClicked(this, &SStringTableBrowser::OnViewReferencesClicked,   Item->AssetPath);
+		.OnEditClicked(this, &SStringTableBrowser::OnEditStringTableClicked,  Item->AssetPath)
+		.OnCopyKeyClicked(this, &SStringTableBrowser::OnCopyKeyClicked, Item)
+		.OnViewReferencesClicked(this, &SStringTableBrowser::OnViewReferencesClicked, Item->AssetPath);
 }
 
 // -------------------------------------------------------------------------
@@ -432,15 +396,13 @@ void SStringTableBrowser::ApplyFilterAndSort()
 {
 	FilteredEntries.Reset();
 
-	if (!FModuleManager::Get().IsModuleLoaded("StringTableBrowser"))
+	auto* const Module = FStringTableBrowserModule::GetModulePtr();
+	if (Module == nullptr)
 	{
 		return;
 	}
-
-	FStringTableBrowserModule& Module =
-		FModuleManager::GetModuleChecked<FStringTableBrowserModule>("StringTableBrowser");
-
-	TArray<TSharedPtr<FStringTableBrowserEntry>> AllEntries = Module.GetCachedEntriesCopy();
+	
+	TArray<TSharedPtr<FStringTableBrowserEntry>> AllEntries = Module->GetCachedEntriesCopy();
 
 	if (Filter.SearchText.IsEmpty())
 	{
@@ -481,9 +443,9 @@ void SStringTableBrowser::OnSearchTextChanged(const FText& InFilterText)
 	// SearchDebounceDelay seconds. The returned handle lets us cancel it if the
 	// user types again before the interval elapses.
 	SearchDebounceTimerHandle = RegisterActiveTimer(
-		SearchDebounceDelay,
-		FWidgetActiveTimerDelegate::CreateSP(
-			this, &SStringTableBrowser::OnSearchDebounceTimer));
+		UStringTableBrowserSettings::Get()->SearchDebounceDelay,
+		FWidgetActiveTimerDelegate::CreateSP(this, &SStringTableBrowser::OnSearchDebounceTimer)
+	);
 }
 
 EActiveTimerReturnType SStringTableBrowser::OnSearchDebounceTimer(
@@ -504,22 +466,20 @@ EActiveTimerReturnType SStringTableBrowser::OnSearchDebounceTimer(
 void SStringTableBrowser::SortData()
 {
 	FilteredEntries.Sort(
-		[this](const TSharedPtr<FStringTableBrowserEntry>& A,
-		       const TSharedPtr<FStringTableBrowserEntry>& B)
+		[this](const TSharedPtr<FStringTableBrowserEntry>& A, const TSharedPtr<FStringTableBrowserEntry>& B)
 		{
 			int32 Result = 0;
 
-			if      (CurrentSortColumn == StringTableBrowserColumns::Key)
+			if (CurrentSortColumn == StringTableBrowserColumns::Key)
 				Result = A->Key.Compare(B->Key);
 			else if (CurrentSortColumn == StringTableBrowserColumns::Value)
 				Result = A->Value.Compare(B->Value);
 			else if (CurrentSortColumn == StringTableBrowserColumns::Source)
 				Result = A->TableId.ToString().Compare(B->TableId.ToString());
 
-			return CurrentSortMode == EColumnSortMode::Ascending
-				? (Result < 0)
-				: (Result > 0);
-		});
+			return CurrentSortMode == EColumnSortMode::Ascending ? (Result < 0) : (Result > 0);
+		}
+	);
 
 	if (ListView.IsValid())
 	{
@@ -529,11 +489,12 @@ void SStringTableBrowser::SortData()
 
 void SStringTableBrowser::OnSortColumnHeader(
 	EColumnSortPriority::Type /*SortPriority*/,
-	const FName&              ColumnId,
-	EColumnSortMode::Type     NewSortMode)
+	const FName& ColumnId,
+	EColumnSortMode::Type NewSortMode
+)
 {
 	CurrentSortColumn = ColumnId;
-	CurrentSortMode   = NewSortMode;
+	CurrentSortMode = NewSortMode;
 	ApplyFilterAndSort();
 }
 
@@ -546,17 +507,9 @@ EColumnSortMode::Type SStringTableBrowser::GetColumnSortMode(const FName ColumnI
 // UI callbacks
 // -------------------------------------------------------------------------
 
-FReply SStringTableBrowser::OnCopyKeyClicked(TSharedPtr<FStringTableBrowserEntry> Item)
+FReply SStringTableBrowser::OnCopyKeyClicked(TSharedPtr<FStringTableBrowserEntry> Item) const
 {
-	if (Item.IsValid())
-	{
-		const FString Reference = FString::Printf(
-			TEXT("LOCTABLE(\"%s\", \"%s\")"),
-			*Item->AssetPath.ToString(),
-			*Item->Key);
-
-		FPlatformApplicationMisc::ClipboardCopy(*Reference);
-	}
+	FStringTableBrowserHelpers::CopyStringTableEntry(Item);
 	return FReply::Handled();
 }
 
@@ -573,7 +526,7 @@ FReply SStringTableBrowser::OnEditStringTableClicked(FSoftObjectPath AssetPath)
 	return FReply::Handled();
 }
 
-FReply SStringTableBrowser::OnViewReferencesClicked(FSoftObjectPath AssetPath)
+FReply SStringTableBrowser::OnViewReferencesClicked(FSoftObjectPath AssetPath) const
 {
 	// Resolve the package name from the asset path and open Unreal's native
 	// Reference Viewer. This shows the full asset dependency graph for the

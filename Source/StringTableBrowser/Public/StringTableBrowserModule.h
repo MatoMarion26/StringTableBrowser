@@ -5,6 +5,10 @@
 #include "CoreMinimal.h"
 #include "HAL/CriticalSection.h"
 #include "Modules/ModuleManager.h"
+#include "UObject/SoftObjectPath.h"
+#include "PropertyEditorDelegates.h"
+#include "StringTableBrowserTypes.h"
+#include "Engine/TimerHandle.h"
 
 /**
  * Bump this constant whenever the disk-cache JSON schema changes.
@@ -12,28 +16,6 @@
  * to be discarded and fully rebuilt on the next editor launch.
  */
 static constexpr int32 GStringTableBrowserCacheVersion = 2;
-
-/**
- * FStringTableBrowserEntry
- *
- * A single row of data displayed in the browser and picker.
- * AssetPath is stored as a soft reference so string table assets are not
- * kept loaded in memory just because they appear in the cache.
- */
-struct FStringTableBrowserEntry
-{
-	/** Short asset name used as the string table namespace identifier. */
-	FName TableId;
-
-	/** Soft path to the owning UStringTable asset. Loaded on demand only. */
-	FSoftObjectPath AssetPath;
-
-	/** The localisation key, e.g. "MAIN_MENU_START". */
-	FString Key;
-
-	/** The source string value, e.g. "Start Game". */
-	FString Value;
-};
 
 /**
  * FStringTableBrowserModule
@@ -57,6 +39,14 @@ public:
 	//~ End IModuleInterface
 
 	// -------------------------------------------------------------------------
+	// Static Helpers
+	// -------------------------------------------------------------------------
+	static FStringTableBrowserModule* GetModulePtr()
+	{
+		return FModuleManager::GetModulePtr<FStringTableBrowserModule>("StringTableBrowser");
+	}
+	
+	// -------------------------------------------------------------------------
 	// Tab and menu registration (called from StartupModule)
 	// -------------------------------------------------------------------------
 
@@ -75,8 +65,14 @@ public:
 	 */
 	TArray<TSharedPtr<FStringTableBrowserEntry>> GetCachedEntriesCopy() const
 	{
-		FScopeLock Lock(&CacheLock);
-		return FlatCache;
+		TArray<TSharedPtr<FStringTableBrowserEntry>> Snapshot;
+		
+		{
+			FScopeLock Lock(&CacheLock);
+			Snapshot = FlatCache;
+		}
+		
+		return Snapshot;
 	}
 
 	/**
@@ -104,6 +100,10 @@ private:
 
 	/** Serialises the current GroupedCache snapshot to disk as versioned JSON. */
 	void SaveCacheToDisk();
+	
+	/** Sets a dirty flag and adds a time offset to write the cache.*/
+	void ScheduleDiskCacheSave();
+
 
 	/** Returns the absolute path to the JSON cache file under the project's Saved directory. */
 	FString GetCacheFilePath() const;
@@ -116,11 +116,7 @@ private:
 	void OnAssetAdded(const struct FAssetData& AssetData);
 	void OnAssetRemoved(const struct FAssetData& AssetData);
 	void OnAssetUpdated(const struct FAssetData& AssetData);
-
-	void OnGenerateGlobalRowExtension(
-		const FOnGenerateGlobalRowExtensionArgs& Args,
-		TArray<FPropertyRowExtensionButton>& OutExtensionButtons
-	);
+	void OnPackageSaved( const FString& PackageFilename, UPackage* Package, FObjectPostSaveContext ObjectSaveContext);
 
 	// -------------------------------------------------------------------------
 	// Internal cache helpers
@@ -128,7 +124,7 @@ private:
 	// -------------------------------------------------------------------------
 
 	/** Enumerates all source strings in Table and inserts them into GroupedCache. */
-	void CacheSingleStringTable(const struct FAssetData& AssetData, class UStringTable* Table);
+	void CacheSingleStringTable(const struct FAssetData& AssetData, const UStringTable* Table);
 
 	/** Removes all entries for the given package from GroupedCache. */
 	void RemoveStringTableFromCache(const FName& PackageName);
@@ -168,4 +164,7 @@ private:
 	FDelegateHandle PostEngineInitHandle;
 
 	FDelegateHandle GlobalRowExtensionHandle;
+	
+	bool bDiskCacheDirty = false;
+	FTimerHandle DiskSaveTimerHandle;
 };
