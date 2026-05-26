@@ -65,6 +65,7 @@ private:
 	void OnCacheUpdated();
 	FReply OnApplyClicked(TSharedPtr<FStringTableBrowserEntry> Item) const;
 	FReply OnCopyKeyClicked(TSharedPtr<FStringTableBrowserEntry> Item) const;
+	FReply OnEditClicked(FSoftObjectPath AssetPath) const;
 
 	// -------------------------------------------------------------------------
 	// Filter

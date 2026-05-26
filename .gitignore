@@ -72,3 +72,6 @@ Plugins/**/Intermediate/*
 
 # Cache files for the editor to use
 DerivedDataCache/*
+.vscode/launch.json
+.vscode/settings.json
+.vscode/c_cpp_properties.json

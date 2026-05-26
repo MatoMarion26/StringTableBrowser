@@ -68,26 +68,6 @@ public:
 
 		if (ColumnName == StringTableBrowserColumns::Actions)
 		{
-			// Shared icon button builder — keeps the three buttons visually consistent
-			auto MakeIconButton = [](
-				const FOnClicked& OnClicked,
-				const FName&      BrushName,
-				const FText&      Tooltip) -> TSharedRef<SWidget>
-			{
-				return SNew(SButton)
-					.ButtonStyle(FAppStyle::Get(), "SimpleButton")
-					.ToolTipText(Tooltip)
-					.OnClicked(OnClicked)
-					.HAlign(HAlign_Center)
-					.VAlign(VAlign_Center)
-					.ContentPadding(FMargin(4.0f, 2.0f))
-					[
-						SNew(SImage)
-						.Image(FAppStyle::GetBrush(BrushName))
-						.DesiredSizeOverride(FVector2D(16.0f, 16.0f))
-					];
-			};
-
 			return SNew(SBox).Padding(2.0f)
 			[
 				SNew(SHorizontalBox)
@@ -95,31 +75,34 @@ public:
 				// Edit Table — opens the asset editor for the source string table
 				+ SHorizontalBox::Slot().AutoWidth().Padding(0.0f, 0.0f, 2.0f, 0.0f)
 				[
-					MakeIconButton(
+					FStringTableBrowserHelpers::MakeIconButton(
 						OnEditClicked,
 						StringTableBrowserIcons::Edit,
-						LOCTEXT("EditBtnTooltip", "Open this String Table in the asset editor."))
+						LOCTEXT("EditBtnTooltip", "Open this String Table in the asset editor.")
+					)
 				]
 
 				// Copy Key — copies the LOCTABLE() reference to the clipboard
 				+ SHorizontalBox::Slot().AutoWidth().Padding(0.0f, 0.0f, 2.0f, 0.0f)
 				[
-					MakeIconButton(
+					FStringTableBrowserHelpers::MakeIconButton(
 						OnCopyKeyClicked,
 						StringTableBrowserIcons::Copy,
-						LOCTEXT("CopyKeyBtnTooltip",
-							"Copy the full LOCTABLE() reference to the clipboard."))
+						LOCTEXT("CopyKeyBtnTooltip","Copy the full LOCTABLE() reference to the clipboard.")
+					)
 				]
 
 				// View References — opens Unreal's native Reference Viewer for the source asset
 				+ SHorizontalBox::Slot().AutoWidth()
 				[
-					MakeIconButton(
+					FStringTableBrowserHelpers::MakeIconButton(
 						OnViewReferencesClicked,
 						StringTableBrowserIcons::FindReferences,
 						LOCTEXT("ViewRefsBtnTooltip",
 							"Open the Reference Viewer for the source String Table asset.\n"
-							"Shows all assets that reference or are referenced by this table."))
+							"Shows all assets that reference or are referenced by this table."
+						)
+					)
 				]
 			];
 		}
@@ -515,14 +498,7 @@ FReply SStringTableBrowser::OnCopyKeyClicked(TSharedPtr<FStringTableBrowserEntry
 
 FReply SStringTableBrowser::OnEditStringTableClicked(FSoftObjectPath AssetPath)
 {
-	if (UObject* LoadedAsset = AssetPath.TryLoad())
-	{
-		if (UAssetEditorSubsystem* EditorSubsystem =
-			GEditor->GetEditorSubsystem<UAssetEditorSubsystem>())
-		{
-			EditorSubsystem->OpenEditorForAsset(LoadedAsset);
-		}
-	}
+	FStringTableBrowserHelpers::OpenStringTableAsset(AssetPath);
 	return FReply::Handled();
 }
 

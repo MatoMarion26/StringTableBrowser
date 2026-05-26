@@ -25,6 +25,26 @@ TSharedRef<SWidget> FStringTableBrowserHelpers::MakeFilterCheckBox(
 		[ SNew(STextBlock).Text(Label) ];
 }
 
+TSharedRef<SWidget> FStringTableBrowserHelpers::MakeIconButton(
+	const FOnClicked& OnClicked,
+	const FName& BrushName,
+	const FText& Tooltip
+)
+{
+	return SNew(SButton)
+		.ButtonStyle(FAppStyle::Get(), "SimpleButton")
+		.ToolTipText(Tooltip)
+		.OnClicked(OnClicked)
+		.HAlign(HAlign_Center)
+		.VAlign(VAlign_Center)
+		.ContentPadding(FMargin(4.0f, 2.0f))
+		[
+			SNew(SImage)
+			.Image(FAppStyle::GetBrush(BrushName))
+			.DesiredSizeOverride(FVector2D(16.0f, 16.0f))
+		];
+};
+
 void FStringTableBrowserHelpers::CopyStringTableEntry(TSharedPtr<FStringTableBrowserEntry> Item)
 {
 	if (Item.IsValid())
@@ -39,5 +59,16 @@ void FStringTableBrowserHelpers::CopyStringTableEntry(TSharedPtr<FStringTableBro
 			*Item->Key);
 
 		FPlatformApplicationMisc::ClipboardCopy(*Reference);
+	}
+}
+
+void FStringTableBrowserHelpers::OpenStringTableAsset(const FSoftObjectPath& AssetPath)
+{
+	if (UObject* LoadedAsset = AssetPath.TryLoad())
+	{
+		if (UAssetEditorSubsystem* EditorSubsystem = GEditor->GetEditorSubsystem<UAssetEditorSubsystem>())
+		{
+			EditorSubsystem->OpenEditorForAsset(LoadedAsset);
+		}
 	}
 }

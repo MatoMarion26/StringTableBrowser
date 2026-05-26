@@ -30,6 +30,21 @@ public:
 	);
 	
 	// -------------------------------------------------------------------------
+	// MakeIconButton — shared helper for building action icons
+	// -------------------------------------------------------------------------
+
+	/**
+	 * Creates a button with an icon and tooltip whose state is forwarded to
+	 * the caller via a TFunction. Used for actions on the browser and the picker.
+	 */
+
+	static TSharedRef<SWidget> MakeIconButton(
+		const FOnClicked& OnClicked,
+		const FName& BrushName,
+		const FText& Tooltip
+	);
+
+	// -------------------------------------------------------------------------
 	// CopyStringTableEntry — shared helper for copying a String Table Entry key
 	// -------------------------------------------------------------------------
 
@@ -37,4 +52,13 @@ public:
 	 * Copies the TableId/Key pair to the Clipboard in a usable way to paste on FText properties.
 	 */
 	static void CopyStringTableEntry(TSharedPtr<FStringTableBrowserEntry> Item);
+
+	// -------------------------------------------------------------------------
+	// OpenStringTableAsset — shared helper for opening the provided String Table Asset
+	// -------------------------------------------------------------------------
+
+	/**
+	 * Usses the provided Asset Path to try and open it with the Asset Manager.
+	 */
+	static void OpenStringTableAsset(const FSoftObjectPath& AssetPath);
 };

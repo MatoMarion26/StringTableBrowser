@@ -28,6 +28,7 @@ public:
 		SLATE_ARGUMENT(TSharedPtr<FStringTableBrowserEntry>, Item)
 		SLATE_EVENT(FOnClicked, OnApplyClicked)
 		SLATE_EVENT(FOnClicked, OnCopyKeyClicked)
+		SLATE_EVENT(FOnClicked, OnEditClicked)
 	SLATE_END_ARGS()
 
 	void Construct(
@@ -38,6 +39,7 @@ public:
 		Item = InArgs._Item;
 		OnApplyClicked = InArgs._OnApplyClicked;
 		OnCopyKeyClicked = InArgs._OnCopyKeyClicked;
+		OnEditClicked = InArgs._OnEditClicked; 
 
 		SMultiColumnTableRow<TSharedPtr<FStringTableBrowserEntry>>::Construct(
 			FSuperRowType::FArguments(), InOwnerTable);
@@ -71,38 +73,38 @@ public:
 			.VAlign(VAlign_Center)
 			.AutoWidth()
 			[
-				SNew(SButton)
-				.ButtonStyle(FAppStyle::Get(), "SimpleButton")
-				.ToolTipText(LOCTEXT("ApplyBtnTooltip",
-					"Bind the FText property to this entry as a string table reference.\n"
-					"Equivalent to LOCTABLE(\"TablePath\", \"Key\")."))
-				.OnClicked(OnApplyClicked)
-				.HAlign(HAlign_Center)
-				.VAlign(VAlign_Center)
-				[
-					SNew(SImage)
-					.Image(FAppStyle::GetBrush(StringTableBrowserIcons::Check))
-					.DesiredSizeOverride(FVector2D(16.0f, 16.0f))
-				]
+				FStringTableBrowserHelpers::MakeIconButton(
+					OnApplyClicked,
+					StringTableBrowserIcons::Check,
+					LOCTEXT("ApplyBtnTooltip",
+						"Bind the FText property to this entry as a string table reference.\n"
+						"Equivalent to LOCTABLE(\"TablePath\", \"Key\")."
+					)
+				)
 			]
+
 			// Copy button 
 			+SHorizontalBox::Slot()
 			.VAlign(VAlign_Center)
 			.AutoWidth()
 			[
-				SNew(SButton)
-				.ButtonStyle(FAppStyle::Get(), "SimpleButton")
-				.ToolTipText(LOCTEXT("CopyKeyBtnTooltip",
-					"Copy the full LOCTABLE() reference to the clipboard."))
-				.OnClicked(OnCopyKeyClicked)
-				.HAlign(HAlign_Center)
-				.VAlign(VAlign_Center)
-				.ContentPadding(FMargin(4.0f, 2.0f))
-				[
-					SNew(SImage)
-					.Image(FAppStyle::GetBrush(StringTableBrowserIcons::Copy))
-					.DesiredSizeOverride(FVector2D(16.0f, 16.0f))
-				]
+				FStringTableBrowserHelpers::MakeIconButton(
+					OnCopyKeyClicked,
+					StringTableBrowserIcons::Copy,
+					LOCTEXT("CopyKeyBtnTooltip", "Copy the full LOCTABLE() reference to the clipboard.")
+				)
+			]
+
+			// Open Table — opens the asset editor for the source string table
+			+ SHorizontalBox::Slot()
+			.VAlign(VAlign_Center)
+			.AutoWidth()
+			[
+				FStringTableBrowserHelpers::MakeIconButton(
+					OnEditClicked,
+					StringTableBrowserIcons::Edit,
+					LOCTEXT("EditBtnTooltip", "Open this String Table in the asset editor.")
+				)
 			];
 		}
 
@@ -114,6 +116,7 @@ private:
 	TSharedPtr<FStringTableBrowserEntry> Item;
 	FOnClicked OnApplyClicked;
 	FOnClicked OnCopyKeyClicked;
+	FOnClicked OnEditClicked;
 };
 
 // -------------------------------------------------------------------------
@@ -135,16 +138,17 @@ void SStringTableBrowserPickerDropdown::Construct(const FArguments& InArgs)
 	TSharedRef<SHeaderRow> HeaderRow = SNew(SHeaderRow)
 		+ SHeaderRow::Column(StringTableBrowserColumns::Key)
 		  .DefaultLabel(LOCTEXT("KeyCol", "Key"))
-		  .FillWidth(0.28f)
+		  .FillWidth(0.20f)
 		+ SHeaderRow::Column(StringTableBrowserColumns::Value)
 		  .DefaultLabel(LOCTEXT("ValCol", "Value"))
-		  .FillWidth(0.42f)
+		  .FillWidth(0.45f)
 		+ SHeaderRow::Column(StringTableBrowserColumns::Source)
 		  .DefaultLabel(LOCTEXT("SourceCol", "Table"))
 		  .FillWidth(0.20f)
 		+ SHeaderRow::Column(StringTableBrowserColumns::Actions)
 		  .DefaultLabel(LOCTEXT("ActionsCol", "Actions"))
-		  .FixedWidth(60.0f);
+		  .FillWidth(0.15f)
+		  .HAlignCell(HAlign_Center);
 
 	// ---- Widget tree --------------------------------------------------------
 
@@ -179,7 +183,12 @@ void SStringTableBrowserPickerDropdown::Construct(const FArguments& InArgs)
 						LOCTEXT("MatchCase", "Match Case"),
 						LOCTEXT("MatchCaseTooltip", "When enabled, the search is case-sensitive."),
 						false,
-						[this](bool b) { Filter.bMatchCase = b; })
+						[this](bool b) 
+						{ 
+							Filter.bMatchCase = b;
+							ApplyFilter();
+						}
+					)
 				]
 
 				+ SHorizontalBox::Slot().AutoWidth().Padding(0.0f, 0.0f, 8.0f, 0.0f)
@@ -190,7 +199,12 @@ void SStringTableBrowserPickerDropdown::Construct(const FArguments& InArgs)
 							"When enabled, only complete words are matched.\n"
 							"For example, \"table\" will not match \"StringTable\"."),
 						false,
-						[this](bool b) { Filter.bWholeWord = b; })
+						[this](bool b) 
+						{ 
+							Filter.bWholeWord = b;
+							ApplyFilter();
+						}
+					)
 				]
 
 				+ SHorizontalBox::Slot().AutoWidth()
@@ -200,7 +214,12 @@ void SStringTableBrowserPickerDropdown::Construct(const FArguments& InArgs)
 						LOCTEXT("RegexTooltip",
 							"Treat the search input as a regular expression (ICU syntax)."),
 						false,
-						[this](bool b) { Filter.bRegex = b; })
+						[this](bool b) 
+						{ 
+							Filter.bRegex = b;
+							ApplyFilter();
+						}
+					)
 				]
 			]
 
@@ -217,7 +236,8 @@ void SStringTableBrowserPickerDropdown::Construct(const FArguments& InArgs)
 					.Text(LOCTEXT("SearchIn", "Search in:"))
 					.ToolTipText(LOCTEXT("SearchInTooltip",
 						"Choose which fields are included when matching.\n"
-						"If none are selected, all entries are shown."))
+						"If none are selected, all entries are shown.")
+					)
 				]
 
 				+ SHorizontalBox::Slot().AutoWidth().Padding(0.0f, 0.0f, 8.0f, 0.0f)
@@ -228,7 +248,12 @@ void SStringTableBrowserPickerDropdown::Construct(const FArguments& InArgs)
 							"Include the entry Key in the search.\n"
 							"The key is the unique identifier used to reference a string in code."),
 						false,
-						[this](bool b) { Filter.bSearchKeys = b; })
+						[this](bool b) 
+						{ 
+							Filter.bSearchKeys = b;
+							ApplyFilter();
+						}
+					)
 				]
 
 				+ SHorizontalBox::Slot().AutoWidth().Padding(0.0f, 0.0f, 8.0f, 0.0f)
@@ -239,7 +264,12 @@ void SStringTableBrowserPickerDropdown::Construct(const FArguments& InArgs)
 							"Include the entry Value in the search.\n"
 							"The value is the human-readable string displayed in game."),
 						true, // on by default
-						[this](bool b) { Filter.bSearchValues = b; })
+						[this](bool b) 
+						{ 
+							Filter.bSearchValues = b;
+							ApplyFilter();
+						}
+					)
 				]
 
 				+ SHorizontalBox::Slot().AutoWidth()
@@ -249,7 +279,12 @@ void SStringTableBrowserPickerDropdown::Construct(const FArguments& InArgs)
 						LOCTEXT("ScopeTableTooltip",
 							"Include the source String Table name in the search."),
 						false,
-						[this](bool b) { Filter.bSearchTables = b; })
+						[this](bool b)
+						{
+							Filter.bSearchTables = b;
+							ApplyFilter();
+						}
+					)
 				]
 			]
 
@@ -280,8 +315,8 @@ void SStringTableBrowserPickerDropdown::Construct(const FArguments& InArgs)
 					.Text_Lambda([this]()
 					{
 						return Filter.SearchText.IsEmpty()
-							? LOCTEXT("EmptySearch",  "Type to search all string table entries.")
-							: LOCTEXT("NoResults",    "No entries match your search.");
+							? LOCTEXT("EmptySearch", "Type to search all string table entries.")
+							: LOCTEXT("NoResults", "No entries match your search.");
 					})
 					.ColorAndOpacity(FSlateColor::UseSubduedForeground())
 					.Visibility_Lambda([this]()
@@ -395,7 +430,8 @@ TSharedRef<ITableRow> SStringTableBrowserPickerDropdown::GenerateRow(
 	return SNew(SPickerRow, OwnerTable)
 		.Item(Item)
 		.OnApplyClicked(this, &SStringTableBrowserPickerDropdown::OnApplyClicked, Item)
-		.OnCopyKeyClicked(this,  &SStringTableBrowserPickerDropdown::OnCopyKeyClicked, Item);
+		.OnCopyKeyClicked(this,  &SStringTableBrowserPickerDropdown::OnCopyKeyClicked, Item)
+		.OnEditClicked(this,  &SStringTableBrowserPickerDropdown::OnEditClicked, Item->AssetPath);
 }
 
 // -------------------------------------------------------------------------
@@ -436,6 +472,12 @@ FReply SStringTableBrowserPickerDropdown::OnApplyClicked(TSharedPtr<FStringTable
 FReply SStringTableBrowserPickerDropdown::OnCopyKeyClicked(TSharedPtr<FStringTableBrowserEntry> Item) const
 {
 	FStringTableBrowserHelpers::CopyStringTableEntry(Item);
+	return FReply::Handled();
+}
+
+FReply SStringTableBrowserPickerDropdown::OnEditClicked(FSoftObjectPath AssetPath) const
+{
+	FStringTableBrowserHelpers::OpenStringTableAsset(AssetPath);
 	return FReply::Handled();
 }
 
