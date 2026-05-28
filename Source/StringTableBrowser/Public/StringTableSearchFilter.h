@@ -92,8 +92,11 @@ struct FStringTableSearchFilter
 		}
 		catch (...)
 		{
-			UE_LOG(LogTemp, Warning,
-				TEXT("StringTableBrowser: Invalid search pattern — \"%s\""), *PatternString);
+			UE_LOG(
+				LogStringTableBrowser,
+				Warning,
+				TEXT("StringTableBrowser: Invalid search pattern — \"%s\""), *PatternString
+			);
 		}
 	}
 

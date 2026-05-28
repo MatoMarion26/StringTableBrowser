@@ -8,7 +8,11 @@
 #include "UObject/SoftObjectPath.h"
 #include "PropertyEditorDelegates.h"
 #include "StringTableBrowserTypes.h"
+#include "Engine/AssetManager.h"
+#include "Engine/StreamableManager.h"
 #include "Engine/TimerHandle.h"
+
+DECLARE_LOG_CATEGORY_EXTERN(LogStringTableBrowser, Log, All);
 
 /**
  * Bump this constant whenever the disk-cache JSON schema changes.
@@ -104,6 +108,8 @@ private:
 	/** Sets a dirty flag and adds a time offset to write the cache.*/
 	void ScheduleDiskCacheSave();
 
+	void OnForceLoadComplete();
+	void RebuildCacheFromLoadedAssets(const TArray<FAssetData>& AssetDataList);
 
 	/** Returns the absolute path to the JSON cache file under the project's Saved directory. */
 	FString GetCacheFilePath() const;
@@ -167,4 +173,7 @@ private:
 	
 	bool bDiskCacheDirty = false;
 	FTimerHandle DiskSaveTimerHandle;
+
+	TArray<FAssetData> PendingRebuildAssetList;
+	TSharedPtr<FStreamableHandle> ActiveStreamableHandle;
 };

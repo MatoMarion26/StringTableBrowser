@@ -24,6 +24,8 @@
 
 #define LOCTEXT_NAMESPACE "StringTableBrowserModule"
 
+DEFINE_LOG_CATEGORY(LogStringTableBrowser);
+
 // -------------------------------------------------------------------------
 // Tab spawner
 // -------------------------------------------------------------------------
@@ -166,6 +168,12 @@ void FStringTableBrowserModule::ShutdownModule()
 		PropertyModule.UnregisterCustomClassLayout("Object");
 		PropertyModule.NotifyCustomizationModuleChanged();
 	}
+
+	if (ActiveStreamableHandle.IsValid())
+	{
+		ActiveStreamableHandle->CancelHandle();
+		ActiveStreamableHandle.Reset();
+	}
 	
 	UToolMenus::UnRegisterStartupCallback(this);
 	UToolMenus::Get()->UnregisterOwner(this);
@@ -202,9 +210,10 @@ bool FStringTableBrowserModule::LoadCacheFromDisk()
 	RootObject->TryGetNumberField(TEXT("Version"), CachedVersion);
 	if (CachedVersion != GStringTableBrowserCacheVersion)
 	{
-		UE_LOG(LogTemp, Log,
+		UE_LOG(LogStringTableBrowser, Log,
 			TEXT("StringTableBrowser: Cache version mismatch (stored=%d, expected=%d). Rebuilding."),
-			CachedVersion, GStringTableBrowserCacheVersion);
+			CachedVersion, GStringTableBrowserCacheVersion
+		);
 		return false;
 	}
 
@@ -339,37 +348,79 @@ void FStringTableBrowserModule::ScheduleDiskCacheSave()
 
 void FStringTableBrowserModule::ForceRebuildCache()
 {
-	{
-		FScopeLock Lock(&CacheLock);
-		GroupedCache.Empty();
+    const UStringTableBrowserSettings* Settings = UStringTableBrowserSettings::Get();
+    const bool bForceLoad = Settings && Settings->bForceLoadStringTables;
 
-		FAssetRegistryModule& AssetRegistryModule =
-			FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
+    FAssetRegistryModule& AssetRegistryModule =
+        FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
 
-		TArray<FAssetData> AssetDataList;
-		AssetRegistryModule.Get().GetAssetsByClass(
-			UStringTable::StaticClass()->GetClassPathName(), AssetDataList
-		);
+    TArray<FAssetData> AssetDataList;
+    AssetRegistryModule.Get().GetAssetsByClass(
+        UStringTable::StaticClass()->GetClassPathName(), AssetDataList);
 
-		for (const FAssetData& AssetData : AssetDataList)
-		{
-			// Only cache assets that are already resident in memory.
-			// Loading everything synchronously here would cause severe hitches on
-			// large projects. Assets load lazily as they are opened by the user.
-			UStringTable* Table = Cast<UStringTable>(
-				FindObject<UStringTable>(nullptr, *AssetData.GetObjectPathString())
-			);
+    if (bForceLoad)
+    {
+        // Collect paths for assets not already in memory
+        TArray<FSoftObjectPath> PathsToLoad;
+        for (const FAssetData& Data : AssetDataList)
+        {
+            if (!FindObject<UStringTable>(nullptr, *Data.GetObjectPathString()))
+            {
+                PathsToLoad.Add(Data.ToSoftObjectPath());
+            }
+        }
 
-			if (Table)
-			{
-				CacheSingleStringTable(AssetData, Table);
-			}
-		}
+        if (PathsToLoad.Num() > 0)
+        {
+            // Store the full asset list for use in the callback
+            PendingRebuildAssetList = AssetDataList;
 
-		RebuildFlatCache();
-	}
+            FStreamableManager& Streamable = UAssetManager::GetStreamableManager();
+            ActiveStreamableHandle = Streamable.RequestAsyncLoad(
+                PathsToLoad,
+                FStreamableDelegate::CreateRaw(
+                    this, &FStringTableBrowserModule::OnForceLoadComplete));
 
-	SaveCacheToDisk();
+            // Return early — cache rebuild runs in OnForceLoadComplete
+            return;
+        }
+    }
+
+    // No force-load needed or all assets already resident — rebuild synchronously
+    RebuildCacheFromLoadedAssets(AssetDataList);
+}
+
+void FStringTableBrowserModule::OnForceLoadComplete()
+{
+    // All requested assets are now resident — run the cache build
+    RebuildCacheFromLoadedAssets(PendingRebuildAssetList);
+    PendingRebuildAssetList.Empty();
+    ActiveStreamableHandle.Reset();
+}
+
+void FStringTableBrowserModule::RebuildCacheFromLoadedAssets(
+    const TArray<FAssetData>& AssetDataList
+)
+{
+    {
+        FScopeLock Lock(&CacheLock);
+        GroupedCache.Empty();
+
+        for (const FAssetData& Data : AssetDataList)
+        {
+            UStringTable* Table = Cast<UStringTable>(
+                FindObject<UStringTable>(nullptr, *Data.GetObjectPathString()));
+
+            if (Table)
+            {
+                CacheSingleStringTable(Data, Table);
+            }
+        }
+
+        RebuildFlatCache();
+    }
+
+    ScheduleDiskCacheSave();
 }
 
 // -------------------------------------------------------------------------
@@ -403,8 +454,17 @@ void FStringTableBrowserModule::OnAssetAdded(const FAssetData& AssetData)
 		return;
 	}
 
-	UStringTable* Table = Cast<UStringTable>(
-		FindObject<UStringTable>(nullptr, *AssetData.GetObjectPathString()));
+	UStringTable* Table = Cast<UStringTable>(FindObject<UStringTable>(nullptr, *AssetData.GetObjectPathString()));
+
+	if (!Table)
+	{
+		const UStringTableBrowserSettings* Settings = UStringTableBrowserSettings::Get();
+		if (Settings && Settings->bForceLoadStringTables)
+		{
+			// Single asset — synchronous load is acceptable here
+			Table = Cast<UStringTable>(AssetData.GetAsset());
+		}
+	}
 
 	if (Table)
 	{

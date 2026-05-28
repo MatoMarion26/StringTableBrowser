@@ -96,7 +96,7 @@ void FTextStringTableBrowserDetailCustomization::OnGeneratePropertyRowExtension(
         return;
     }
 
-	UE_LOG(LogTemp, Log, TEXT("StringTableBrowser: ExtensionBar - Property: %s"), *InArgs.PropertyHandle->GetProperty()->GetName());
+	UE_LOG(LogStringTableBrowser, Verbose, TEXT("StringTableBrowser: ExtensionBar - Property: %s"), *InArgs.PropertyHandle->GetProperty()->GetName());
 
     TSharedPtr<IPropertyHandle> PropertyHandle = InArgs.PropertyHandle;
     TSharedPtr<FString> LastSearchText = MakeShared<FString>();
@@ -138,34 +138,35 @@ void FTextStringTableBrowserDetailCustomization::CustomizeDetails(
 )
 {
     // Only active when the setting is NextToLabel
-    if (UStringTableBrowserSettings::Get()->ButtonPlacement !=
-        EStringTableBrowserButtonPlacement::NextToLabel)
+    if (UStringTableBrowserSettings::Get()->ButtonPlacement != EStringTableBrowserButtonPlacement::NextToLabel)
     {
         return;
     }
-	
-    TArray<FName> CategoryNames;
-    DetailBuilder.GetCategoryNames(CategoryNames);
-
-    for (const FName& CategoryName : CategoryNames)
-    {
-        IDetailCategoryBuilder& Category = DetailBuilder.EditCategory(CategoryName);
-
-        TArray<TSharedRef<IPropertyHandle>> CategoryProperties;
-        Category.GetDefaultProperties(CategoryProperties);
-
-        for (const TSharedRef<IPropertyHandle>& PropHandle : CategoryProperties)
-        {
-            if (!PropHandle->GetProperty() ||
-                !PropHandle->GetProperty()->IsA<FTextProperty>())
+    
+    TFunction<void(TSharedRef<IPropertyHandle>, IDetailCategoryBuilder&)> ProcessPropertyHandle =
+        [&](TSharedRef<IPropertyHandle> PropertyHandle, IDetailCategoryBuilder& Category)
+	    {
+		    if (!PropertyHandle->GetProperty() || !PropertyHandle->GetProperty()->IsA<FTextProperty>())
             {
-                continue;
+			    // Recurse into children to find FText properties and go to the next iteration.
+			    uint32 NumChildren = 0;
+    		    PropertyHandle->GetNumChildren(NumChildren);
+
+    		    for (uint32 i = 0; i < NumChildren; ++i)
+    		    {
+        		    TSharedPtr<IPropertyHandle> ChildHandle = PropertyHandle->GetChildHandle(i);
+        		    if (ChildHandle.IsValid())
+        		    {
+            		    ProcessPropertyHandle(ChildHandle.ToSharedRef(), Category);
+        		    }
+    		    }
+		        return;
             }
 
-        	UE_LOG(LogTemp, Log, TEXT("StringTableBrowser: NextToLabel - Property: %s"), *PropHandle->GetProperty()->GetName());
-        	
+            UE_LOG(LogStringTableBrowser, Verbose, TEXT("StringTableBrowser: NextToLabel - Property: %s"), *PropertyHandle->GetProperty()->GetName());
+            
             FText CurrentValue;
-            PropHandle->GetValue(CurrentValue);
+            PropertyHandle->GetValue(CurrentValue);
 
             // Per-row last search state — shared with the button lambda
             TSharedPtr<FString> RowLastSearchText =
@@ -174,7 +175,7 @@ void FTextStringTableBrowserDetailCustomization::CustomizeDetails(
             TSharedPtr<SWidget> NameWidget;
             TSharedPtr<SWidget> ValueWidget;
 
-            IDetailPropertyRow& Row = Category.AddProperty(PropHandle);
+            IDetailPropertyRow& Row = Category.AddProperty(PropertyHandle);
             Row.GetDefaultWidgets(NameWidget, ValueWidget);
 
             Row.CustomWidget(/*bShowChildren=*/true)
@@ -200,9 +201,9 @@ void FTextStringTableBrowserDetailCustomization::CustomizeDetails(
                         "Search all String Tables and bind this FText property "
                         "to the selected entry as a proper string table reference."))
                     .ContentPadding(FMargin(2.0f))
-                    .OnClicked_Lambda([PropHandle, RowLastSearchText]()
+                    .OnClicked_Lambda([PropertyHandle, RowLastSearchText]()
                     {
-                        OpenPickerDropdown(PropHandle, RowLastSearchText);
+                        OpenPickerDropdown(PropertyHandle, RowLastSearchText);
                         return FReply::Handled();
                     })
                     [
@@ -217,7 +218,22 @@ void FTextStringTableBrowserDetailCustomization::CustomizeDetails(
             [
                 ValueWidget.ToSharedRef()
             ];
-        }
+	    };
+    
+    TArray<FName> CategoryNames;
+    DetailBuilder.GetCategoryNames(CategoryNames);
+
+    for (const FName& CategoryName : CategoryNames)
+    {
+        IDetailCategoryBuilder& Category = DetailBuilder.EditCategory(CategoryName);
+
+        TArray<TSharedRef<IPropertyHandle>> CategoryProperties;
+        Category.GetDefaultProperties(CategoryProperties);
+
+        for (const TSharedRef<IPropertyHandle>& PropertyHandle : CategoryProperties)
+		{
+			ProcessPropertyHandle(PropertyHandle, Category);
+		}
     }
 }
 

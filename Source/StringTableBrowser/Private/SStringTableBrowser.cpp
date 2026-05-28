@@ -212,27 +212,32 @@ void SStringTableBrowser::Construct(const FArguments& InArgs)
 						"For example: \"^Hello\" matches entries that start with \"Hello\"."),
 					false,
 					[this](bool b)
-					{
-						Filter.bRegex = b;
-						ApplyFilterAndSort();
-					})
+						{
+							Filter.bRegex = b;
+							ApplyFilterAndSort();
+						}
+					)
 			]
 
 			+ SHorizontalBox::Slot().AutoWidth().Padding(5.0f, 0.0f)
 			[
 				SNew(SButton)
-				.Text(LOCTEXT("Refresh", "Force Rebuild Cache"))
+				.Text(LOCTEXT("Refresh", "Force Load String Tables"))
 				.ToolTipText(LOCTEXT("RefreshTooltip",
-					"Discard the current cache and re-scan all String Table assets in the project.\n"
-					"Use this after syncing changes from version control."))
-				.OnClicked_Lambda([]()
-				{
-					if (auto* const Module = FStringTableBrowserModule::GetModulePtr())
+						"Discard the current cache, load and re-scan all String Table assets in the project.\n"
+						"Use this after syncing changes from version control."
+					)
+				)
+				.OnClicked_Lambda(
+					[]()
 					{
-						Module->ForceRebuildCache();
+						if (auto* const Module = FStringTableBrowserModule::GetModulePtr())
+						{
+							Module->ForceRebuildCache();
+						}
+						return FReply::Handled();
 					}
-					return FReply::Handled();
-				})
+				)
 			]
 		]
 

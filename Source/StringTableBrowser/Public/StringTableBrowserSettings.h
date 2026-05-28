@@ -82,4 +82,14 @@ public:
 	*/
 	UPROPERTY(Config, EditAnywhere, Category="Cache", meta=(DisplayName="Save Cache to Disk Delay."))
 	float SaveCacheToDiskDelay = 1.5f;
+
+	/**
+	 * When enabled, ForceRebuildCache loads all string table assets into memory
+	 * via the async streamable manager before building the cache. This guarantees
+	 * complete cache coverage at the cost of a background load on cache build.
+	 * Recommended for projects where string tables are not kept loaded in memory.
+	 * Disable on very large projects if the load time is unacceptable.
+	 */
+	UPROPERTY(Config, EditAnywhere, Category="Cache", meta=(DisplayName="Force Load String Tables on Cache Build"))
+	bool bForceLoadStringTables = true;
 };
