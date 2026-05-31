@@ -61,4 +61,10 @@ public:
 	 * Usses the provided Asset Path to try and open it with the Asset Manager.
 	 */
 	static void OpenStringTableAsset(const FSoftObjectPath& AssetPath);
+
+	
+	static void OpenPickerDropdown(
+		TSharedPtr<IPropertyHandle> PropertyHandle,
+		TSharedPtr<FString> LastSearchText
+	);
 };

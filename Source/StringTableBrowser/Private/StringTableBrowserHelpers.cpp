@@ -2,11 +2,14 @@
 
 #include "StringTableBrowserHelpers.h"
 
+#include "SStringTableBrowserPickerDropdown.h"
 #include "StringTableBrowserTypes.h"
 #include "HAL/PlatformApplicationMisc.h"
 #include "Widgets/DeclarativeSyntaxSupport.h"
 #include "Widgets/Input/SCheckBox.h"
 #include "Widgets/Text/STextBlock.h"
+
+#define LOCTEXT_NAMESPACE "FStringTableBrowserHelpers"
 
 TSharedRef<SWidget> FStringTableBrowserHelpers::MakeFilterCheckBox(
 	const FText& Label,
@@ -72,3 +75,53 @@ void FStringTableBrowserHelpers::OpenStringTableAsset(const FSoftObjectPath& Ass
 		}
 	}
 }
+
+void FStringTableBrowserHelpers::OpenPickerDropdown(
+	TSharedPtr<IPropertyHandle> PropertyHandle,
+	TSharedPtr<FString> LastSearchText
+)
+{
+	if (LastSearchText->IsEmpty())
+	{
+		FText CurrentValue;
+		PropertyHandle->GetValue(CurrentValue);
+		*LastSearchText = CurrentValue.ToString();
+	}
+
+	TSharedRef<SStringTableBrowserPickerDropdown> Dropdown =
+		SNew(SStringTableBrowserPickerDropdown)
+		.InitialSearchText(*LastSearchText)
+		.OnSearchTextChanged_Lambda([LastSearchText](const FString& NewText)
+		{
+			*LastSearchText = NewText;
+		})
+		.OnEntryPicked_Lambda([PropertyHandle](FName TableId, FString Key)
+		{
+			const FScopedTransaction Transaction(
+				LOCTEXT("SetStringTableReference", "Set String Table Reference"));
+
+			TArray<UObject*> OuterObjects;
+			PropertyHandle->GetOuterObjects(OuterObjects);
+			for (UObject* Object : OuterObjects)
+			{
+				if (Object) { Object->Modify(); }
+			}
+
+			const FText NewValue = FText::FromStringTable(TableId, Key);
+			PropertyHandle->SetValue(NewValue, EPropertyValueSetFlags::DefaultFlags);
+		});
+
+	const FVector2D SpawnLocation =
+		FSlateApplication::Get().GetCursorPos() + FVector2D(0.0f, 20.0f);
+
+	FSlateApplication::Get().PushMenu(
+		FSlateApplication::Get().GetActiveTopLevelWindow().ToSharedRef(),
+		FWidgetPath(),
+		Dropdown,
+		SpawnLocation,
+		FPopupTransitionEffect(FPopupTransitionEffect::ContextMenu));
+
+	Dropdown->FocusSearchBox();
+}
+
+#undef LOCTEXT_NAMESPACE

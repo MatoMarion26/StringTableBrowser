@@ -6,8 +6,6 @@
 #include "IDetailCustomization.h"
 #include "PropertyEditorDelegates.h"
 
-class IDetailChildrenBuilder;
-class IPropertyTypeCustomizationUtils;
 class IDetailCustomization;
 
 class FTextStringTableBrowserDetailCustomization : public IDetailCustomization
@@ -18,11 +16,6 @@ public:
 
 	//~ IDetailCustomization
 	virtual void CustomizeDetails(IDetailLayoutBuilder& DetailBuilder) override;
-	void CustomizeChildren(
-		TSharedRef<IPropertyHandle> PropertyHandle,
-		IDetailChildrenBuilder& ChildBuilder,
-		IPropertyTypeCustomizationUtils& CustomizationUtils
-	) {}
 	//~ End IDetailCustomization
 
 	/**
@@ -31,11 +24,8 @@ public:
 	 */
 	static void OnGeneratePropertyRowExtension(
 		const FOnGenerateGlobalRowExtensionArgs& InArgs,
-		TArray<FPropertyRowExtensionButton>&     OutExtensionButtons);
-
-private:
-	static void OpenPickerDropdown(
-		TSharedPtr<IPropertyHandle> PropertyHandle,
-		TSharedPtr<FString> LastSearchText
+		TArray<FPropertyRowExtensionButton>& OutExtensionButtons
 	);
+
 };
+

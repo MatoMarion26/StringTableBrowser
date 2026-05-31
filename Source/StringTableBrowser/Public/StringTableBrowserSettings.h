@@ -67,7 +67,7 @@ public:
      * Always visible but takes up name column space.
      */
     UPROPERTY(Config, EditAnywhere, Category="Details Panel", meta=(DisplayName="FText Button Placement"))
-    EStringTableBrowserButtonPlacement ButtonPlacement = EStringTableBrowserButtonPlacement::NextToLabel;
+    EStringTableBrowserButtonPlacement ButtonPlacement = EStringTableBrowserButtonPlacement::ExtensionBar;
 	
 	/**
 	* Controls the delay for debouncing the search after the user finishes typing on the searchbar.

@@ -10,6 +10,7 @@
 #include "IDetailPropertyRow.h"
 #include "PropertyHandle.h"
 #include "ScopedTransaction.h"
+#include "StringTableBrowserHelpers.h"
 #include "StringTableBrowserTypes.h"
 #include "Styling/AppStyle.h"
 #include "Widgets/Images/SImage.h"
@@ -17,59 +18,6 @@
 #include "UObject/TextProperty.h"
 
 #define LOCTEXT_NAMESPACE "FTextStringTableBrowserDetailCustomization"
-
-// -------------------------------------------------------------------------
-// Shared helpers
-// -------------------------------------------------------------------------
-
-/** Opens the picker dropdown anchored 20px below the cursor. */
-void FTextStringTableBrowserDetailCustomization::OpenPickerDropdown(
-    TSharedPtr<IPropertyHandle> PropertyHandle,
-    TSharedPtr<FString> LastSearchText
-)
-{
-    if (LastSearchText->IsEmpty())
-    {
-        FText CurrentValue;
-        PropertyHandle->GetValue(CurrentValue);
-        *LastSearchText = CurrentValue.ToString();
-    }
-
-    TSharedRef<SStringTableBrowserPickerDropdown> Dropdown =
-        SNew(SStringTableBrowserPickerDropdown)
-        .InitialSearchText(*LastSearchText)
-        .OnSearchTextChanged_Lambda([LastSearchText](const FString& NewText)
-        {
-            *LastSearchText = NewText;
-        })
-        .OnEntryPicked_Lambda([PropertyHandle](FName TableId, FString Key)
-        {
-            const FScopedTransaction Transaction(
-                LOCTEXT("SetStringTableReference", "Set String Table Reference"));
-
-            TArray<UObject*> OuterObjects;
-            PropertyHandle->GetOuterObjects(OuterObjects);
-            for (UObject* Object : OuterObjects)
-            {
-                if (Object) { Object->Modify(); }
-            }
-
-            const FText NewValue = FText::FromStringTable(TableId, Key);
-            PropertyHandle->SetValue(NewValue, EPropertyValueSetFlags::DefaultFlags);
-        });
-
-    const FVector2D SpawnLocation =
-        FSlateApplication::Get().GetCursorPos() + FVector2D(0.0f, 20.0f);
-
-    FSlateApplication::Get().PushMenu(
-        FSlateApplication::Get().GetActiveTopLevelWindow().ToSharedRef(),
-        FWidgetPath(),
-        Dropdown,
-        SpawnLocation,
-        FPopupTransitionEffect(FPopupTransitionEffect::ContextMenu));
-
-    Dropdown->FocusSearchBox();
-}
 
 // -------------------------------------------------------------------------
 // Extension bar path
@@ -107,17 +55,19 @@ void FTextStringTableBrowserDetailCustomization::OnGeneratePropertyRowExtension(
     }
 
 	FPropertyRowExtensionButton Button;
-    Button.Icon    = FSlateIcon(FAppStyle::GetAppStyleSetName(), StringTableBrowserIcons::OpenBrowserSearch);
-    Button.Label   = LOCTEXT("SearchBtnLabel",   "Search String Tables");
+    Button.Icon = FSlateIcon(FAppStyle::GetAppStyleSetName(), StringTableBrowserIcons::OpenBrowserSearch);
+    Button.Label = LOCTEXT("SearchBtnLabel", "Search String Tables");
     Button.ToolTip = LOCTEXT("SearchBtnTooltip",
         "Search all String Tables and bind this FText property to the "
-        "selected entry as a proper string table reference.");
+        "selected entry as a proper string table reference."
+    );
 
     Button.UIAction = FUIAction(
         FExecuteAction::CreateLambda([PropertyHandle, LastSearchText]()
-        {
-            OpenPickerDropdown(PropertyHandle, LastSearchText);
-        }),
+            {
+                FStringTableBrowserHelpers::OpenPickerDropdown(PropertyHandle, LastSearchText);
+            }
+        ),
         FCanExecuteAction()
     );
 	
@@ -126,7 +76,7 @@ void FTextStringTableBrowserDetailCustomization::OnGeneratePropertyRowExtension(
 
 // -------------------------------------------------------------------------
 // Next-to-label path
-// -------------------------------------------------------------------------
+// -------------s------------------------------------------------------------
 
 TSharedRef<IDetailCustomization> FTextStringTableBrowserDetailCustomization::MakeInstance()
 {
@@ -148,18 +98,6 @@ void FTextStringTableBrowserDetailCustomization::CustomizeDetails(
 	    {
 		    if (!PropertyHandle->GetProperty() || !PropertyHandle->GetProperty()->IsA<FTextProperty>())
             {
-			    // Recurse into children to find FText properties and go to the next iteration.
-			    uint32 NumChildren = 0;
-    		    PropertyHandle->GetNumChildren(NumChildren);
-
-    		    for (uint32 i = 0; i < NumChildren; ++i)
-    		    {
-        		    TSharedPtr<IPropertyHandle> ChildHandle = PropertyHandle->GetChildHandle(i);
-        		    if (ChildHandle.IsValid())
-        		    {
-            		    ProcessPropertyHandle(ChildHandle.ToSharedRef(), Category);
-        		    }
-    		    }
 		        return;
             }
 
@@ -203,7 +141,7 @@ void FTextStringTableBrowserDetailCustomization::CustomizeDetails(
                     .ContentPadding(FMargin(2.0f))
                     .OnClicked_Lambda([PropertyHandle, RowLastSearchText]()
                     {
-                        OpenPickerDropdown(PropertyHandle, RowLastSearchText);
+                        FStringTableBrowserHelpers::OpenPickerDropdown(PropertyHandle, RowLastSearchText);
                         return FReply::Handled();
                     })
                     [

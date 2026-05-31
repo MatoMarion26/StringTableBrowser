@@ -120,9 +120,9 @@ void FStringTableBrowserModule::StartupModule()
 		);
 
 	// Next-to-label customization — always registered, same internal gate.
-	PropertyModule.RegisterCustomClassLayout("Object", FOnGetDetailCustomizationInstance::CreateStatic(
-			&FTextStringTableBrowserDetailCustomization::MakeInstance
-		)
+	PropertyModule.RegisterCustomClassLayout(
+		"Object",
+		FOnGetDetailCustomizationInstance::CreateStatic(&FTextStringTableBrowserDetailCustomization::MakeInstance)
 	);
 
 	PropertyModule.NotifyCustomizationModuleChanged();
@@ -163,7 +163,7 @@ void FStringTableBrowserModule::ShutdownModule()
 	{
 		FPropertyEditorModule& PropertyModule =
 			FModuleManager::GetModuleChecked<FPropertyEditorModule>("PropertyEditor");
-
+		
 		PropertyModule.GetGlobalRowExtensionDelegate().Remove(GlobalRowExtensionHandle);
 		PropertyModule.UnregisterCustomClassLayout("Object");
 		PropertyModule.NotifyCustomizationModuleChanged();
