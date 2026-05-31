@@ -321,6 +321,8 @@ Controls where the search button appears on `FText` property rows in the Details
 > dropdown activates. **Next to Property Label** does not have this limitation and is
 > recommended for most projects.
 
+![Details_Issue](Docs/Screenshots/details_issue.gif)
+
 The setting is stored in `Config/DefaultStringTableBrowser.ini` and is project-scoped, so it
 commits to source control and applies to all team members.
 
